@@ -4,7 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Media Organizer for Plex - автоматизированный инструмент для подготовки сериалов и аниме для Plex Media Server. Использует OpenAI API для распознавания названий сериалов и организует медиафайлы в структуру, совместимую с Plex.
+Media Organizer for Plex v3.0 - автоматизированный инструмент для подготовки сериалов и аниме для Plex Media Server.
+
+**Основные возможности:**
+- Автоматическое распознавание названий через OpenAI API
+- **Preprocessing pipeline**: AVI→MKV, EAC3→AAC, встраивание треков
+- Объединение медиафайлов в Plex-совместимую структуру
+- Валидация с помощью MediaInfo
+- Модульная архитектура для лёгкого расширения
 
 ## Setup
 
@@ -17,10 +24,10 @@ pip install -r requirements.txt
 
 # External dependencies required
 # macOS:
-brew install mkvtoolnix mediainfo
+brew install mkvtoolnix mediainfo ffmpeg
 
 # Linux:
-apt-get install mkvtoolnix mediainfo
+apt-get install mkvtoolnix mediainfo ffmpeg
 ```
 
 ## Running the Script
@@ -35,56 +42,85 @@ python media_organizer.py /path/to/series/directory
 
 ## Architecture
 
-### Main Class: `MediaOrganizer`
+### Модульная структура
 
-Центральный класс, управляющий всем процессом обработки медиафайлов.
+```
+openai-series-analizer/
+├── media_organizer.py          # Main orchestrator (287 lines)
+├── models/
+│   └── data_models.py          # All dataclasses
+├── processors/
+│   ├── scanner.py              # File scanning
+│   ├── ai_analyzer.py          # OpenAI integration
+│   ├── preprocessor.py         # Preprocessing coordinator
+│   ├── avi_converter.py        # AVI → MKV
+│   ├── audio_converter.py      # EAC3 → AAC
+│   ├── track_embedder.py       # Embed external tracks
+│   ├── merger.py               # Final MKV merging
+│   └── validator.py            # MediaInfo validation
+└── utils/
+    └── patterns.py             # Regex patterns
+```
 
-**Key data structures:**
-- `MediaFile` - dataclass для хранения информации о файле (путь, тип, номер эпизода, язык, субтитры)
-- `SeriesInfo` - dataclass для метаданных сериала (название, год, сезон, количество эпизодов)
-- `MediaValidationResult` - dataclass для результатов валидации (треки, кодеки, ошибки)
-- `episode_map` - словарь, группирующий видео/аудио/субтитры по номерам эпизодов
+**Data models** (models/data_models.py):
+- `MediaFile` - информация о файле
+- `SeriesInfo` - метаданные сериала
+- `MediaValidationResult` - результаты валидации
+- `PreprocessingResult` - результаты preprocessing
+
+**Main orchestrator** (media_organizer.py):
+- Координирует все processors
+- Управляет episode_map
+- Обрабатывает пользовательский ввод
 
 ### Processing Workflow
 
-1. **Directory Analysis** (`extract_info_from_dirname`):
+1. **Directory Analysis** (utils/patterns.py):
    - Парсит название директории по паттерну `Название.S01.качество-ГРУППА`
    - Извлекает: название, сезон, релиз-группу
 
-2. **File Scanning** (`scan_directory`):
+2. **File Scanning** (processors/scanner.py):
    - Рекурсивно сканирует директорию
-   - Классифицирует файлы: video (.mkv, .mp4), audio (.mka, .aac), subtitle (.srt, .ass)
+   - Классифицирует файлы: video (.mkv, .mp4, .avi), audio (.mka, .aac), subtitle (.srt, .ass)
    - Извлекает номера эпизодов из имён файлов (паттерн S01E01)
    - Определяет треки субтитров (Анимевод, Crunchyroll)
-   - Обнаруживает дубликаты субтитров по размеру и треку
+   - Обнаруживает дубликаты субтитров
 
-3. **AI Analysis** (`analyze_with_ai`):
-   - Использует OpenAI GPT-4o для определения официального английского названия сериала
-   - Определяет год выхода и подтверждает сезон
-   - Fallback на локальное распознавание при отсутствии API ключа
-
-4. **User Confirmation** (`confirm_series_info`):
-   - Интерактивное подтверждение/исправление метаданных
-   - Опции: принять, исправить название, исправить всё
-
-5. **File Organization** (`organize_files`):
+3. **File Organization** (media_organizer.py):
    - Группирует файлы в `episode_map` по номерам эпизодов
    - Фильтрует дубликаты субтитров
 
-6. **Merging** (`merge_episode`):
-   - Использует `mkvmerge` для объединения видео + аудиодорожки + субтитры
+4. **Preprocessing** (processors/preprocessor.py) - **NEW**:
+   - **Conditional**: запускается только если нужно
+   - **AVI Conversion**: .avi → .mkv с помощью ffmpeg (remux)
+   - **EAC3 Conversion**: обнаруживает EAC3, конвертирует в AAC
+   - **Track Embedding**: встраивает внешние .mka и .ass/.srt в MKV
+   - Создаёт временные файлы в `.preprocessing_temp/`
+
+5. **AI Analysis** (processors/ai_analyzer.py):
+   - Использует OpenAI GPT-4o для определения официального английского названия
+   - Определяет год выхода и подтверждает сезон
+   - Fallback на локальное распознавание при отсутствии API ключа
+
+6. **User Confirmation** (media_organizer.py):
+   - Интерактивное подтверждение/исправление метаданных
+   - Опции: принять, исправить название, исправить всё
+
+7. **Final Merging** (processors/merger.py):
+   - Использует `mkvmerge` для финального объединения
    - Устанавливает правильные названия треков субтитров
    - Выходной формат: `Series Title - S01E01.mkv`
 
-7. **Output Structure** (`create_output_structure`):
+8. **Output Structure** (media_organizer.py):
    - Создаёт Plex-совместимую структуру: `Series Title (Year)/Season 01/`
-   - Именует файлы по стандарту Plex: `Series Title - S01E01.mkv`
 
-8. **Validation** (`validate_output_files`):
+9. **Validation** (processors/validator.py):
    - Анализирует созданные MKV файлы с помощью MediaInfo
    - Проверяет: длительность, количество треков, кодеки, разрешение
-   - Выявляет ошибки (нет видео, слишком короткое) и предупреждения
-   - Выводит детальную статистику по каждому файлу
+   - Выявляет ошибки и предупреждения
+
+10. **Cleanup**:
+    - Удаляет временные файлы preprocessing
 
 ## Important Notes
 
@@ -92,21 +128,24 @@ python media_organizer.py /path/to/series/directory
 
 **Required:**
 - **mkvmerge** (MKVToolNix) - для объединения медиафайлов
-  - macOS: `brew install mkvtoolnix`
-  - Linux: `apt-get install mkvtoolnix`
-
-**Optional (for validation):**
-- **mediainfo** - для анализа и валидации медиафайлов
-  - macOS: `brew install mediainfo`
-  - Linux: `apt-get install mediainfo`
+- **mediainfo** - для анализа и валидации
+- **ffmpeg** - для AVI→MKV и EAC3→AAC конвертации
 
 ### File Pattern Recognition
-- Эпизоды: регулярное выражение `[Ss](\d+)[Ee](\d+)` (media_organizer.py:83)
-- Директории: регулярное выражение `^(.+?)\.S(\d+).*?-(\w+)$` (media_organizer.py:66)
+- Эпизоды: `[Ss](\d+)[Ee](\d+)` (utils/patterns.py)
+- Директории: `^(.+?)\.S(\d+).*?-(\w+)$` (utils/patterns.py)
 
-### Subtitle Track Detection
-- Логика в `detect_subtitle_track()` (media_organizer.py:93)
-- Проверяет имена файлов и родительские директории на ключевые слова (Анимевод, CR)
+### Preprocessing Features
+- **AVI Detection**: по расширению `.avi` (processors/avi_converter.py)
+- **EAC3 Detection**: через MediaInfo analysis (processors/audio_converter.py)
+- **Track Embedding**: встраивание внешних .mka и .ass/.srt (processors/track_embedder.py)
+
+### Key Modules
+- `processors/preprocessor.py` - координатор preprocessing, управляет временными файлами
+- `processors/audio_converter.py` - обнаруживает EAC3 треки, извлекает, конвертирует в AAC, заменяет
+- `processors/avi_converter.py` - ffmpeg remux (без перекодирования видео)
+- `processors/scanner.py` - сканирование с дедупликацией субтитров
+- `processors/validator.py` - валидация через MediaInfo
 
 ## Development Guidelines
 
