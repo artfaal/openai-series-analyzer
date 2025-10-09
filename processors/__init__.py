@@ -1,3 +1,3 @@
 """
-Processors package - модули для обработки медиафайлов
+Processors package - modules for media file processing
 """

@@ -1,8 +1,9 @@
 """
 AI Prompts Configuration
-Централизованное хранение промптов для OpenAI API
+Centralized storage for OpenAI API prompts
 """
 
+# System prompt for AI analysis (in Russian for better understanding by the AI)
 AI_SYSTEM_PROMPT = "Ты эксперт по аниме и сериалам. Отвечай ТОЛЬКО валидным JSON без markdown блоков."
 
 AI_USER_PROMPT_TEMPLATE = """Проанализируй информацию о сериале/аниме:

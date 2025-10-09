@@ -1,3 +1,3 @@
 """
-Utils package - вспомогательные утилиты
+Utils package - helper utilities
 """

@@ -1,6 +1,6 @@
 """
 File Scanner
-Сканирует директорию и классифицирует медиафайлы
+Scans directory and classifies media files
 """
 
 from pathlib import Path
@@ -10,7 +10,7 @@ from utils.patterns import extract_episode_info, detect_subtitle_track
 
 
 class FileScanner:
-    """Сканер файлов в директории"""
+    """Directory file scanner"""
 
     def __init__(self):
         self.media_extensions = {
@@ -21,18 +21,18 @@ class FileScanner:
 
     def scan_directory(self, directory: Path) -> List[MediaFile]:
         """
-        Сканирует директорию и классифицирует файлы
+        Scans directory and classifies files
 
         Args:
-            directory: Путь к директории для сканирования
+            directory: Path to directory to scan
 
         Returns:
-            Список MediaFile объектов
+            List of MediaFile objects
         """
         print(f"\n🔍 Сканирование директории: {directory}")
 
         files = []
-        subtitle_hashes = {}  # Для обнаружения дубликатов
+        subtitle_hashes = {}  # For detecting duplicates
 
         for item in directory.rglob('*'):
             if not item.is_file() or item.name == 'Комментарий.txt':
@@ -40,7 +40,7 @@ class FileScanner:
 
             ext = item.suffix.lower()
 
-            # Определяем тип файла
+            # Determine file type
             file_type = None
             for ftype, extensions in self.media_extensions.items():
                 if ext in extensions:
@@ -58,14 +58,14 @@ class FileScanner:
                     episode_number=episode
                 )
 
-                # Для субтитров
+                # For subtitles
                 if file_type == 'subtitle':
                     media_file.subtitle_track = detect_subtitle_track(
                         item.name,
                         item.parent.name
                     )
 
-                    # Проверка на дубликаты субтитров
+                    # Check for subtitle duplicates
                     file_size = item.stat().st_size
                     hash_key = (episode, media_file.subtitle_track, file_size)
 

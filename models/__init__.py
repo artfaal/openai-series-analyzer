@@ -1,3 +1,3 @@
 """
-Models package - data models и dataclasses
+Models package - data models and dataclasses
 """

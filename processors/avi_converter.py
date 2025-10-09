@@ -1,6 +1,6 @@
 """
 AVI → MKV Converter
-Конвертирует .avi файлы в .mkv контейнер используя ffmpeg (remux без перекодирования)
+Converts .avi files to .mkv container using ffmpeg (remux without re-encoding)
 """
 
 import subprocess
@@ -9,33 +9,33 @@ from typing import Optional
 
 
 class AVIConverter:
-    """Конвертер AVI файлов в MKV"""
+    """AVI to MKV file converter"""
 
     def __init__(self):
         self.ffmpeg_path = 'ffmpeg'
 
     def needs_conversion(self, file_path: Path) -> bool:
         """
-        Проверяет, нужна ли конвертация файла
+        Checks if file needs conversion
 
         Args:
-            file_path: Путь к файлу
+            file_path: Path to file
 
         Returns:
-            True если файл .avi, иначе False
+            True if file is .avi, otherwise False
         """
         return file_path.suffix.lower() == '.avi'
 
     def convert(self, avi_file: Path, output_file: Optional[Path] = None) -> Optional[Path]:
         """
-        Конвертирует AVI в MKV (remux без перекодирования)
+        Converts AVI to MKV (remux without re-encoding)
 
         Args:
-            avi_file: Путь к .avi файлу
-            output_file: Путь для выходного файла (если None, создаётся рядом с оригиналом)
+            avi_file: Path to .avi file
+            output_file: Path for output file (if None, created next to original)
 
         Returns:
-            Path к созданному MKV файлу или None при ошибке
+            Path to created MKV file or None on error
         """
         if not self.needs_conversion(avi_file):
             print(f"⚠️  {avi_file.name} не является AVI файлом")
@@ -49,7 +49,7 @@ class AVIConverter:
 
         try:
             # ffmpeg -i input.avi -c copy output.mkv
-            # -c copy = копирование потоков без перекодирования (быстро)
+            # -c copy = copy streams without re-encoding (fast)
             cmd = [
                 self.ffmpeg_path,
                 '-i', str(avi_file),

@@ -1,6 +1,6 @@
 """
 EAC3 Audio Converter
-Обнаруживает и конвертирует EAC3 (E-AC-3) аудиотреки в AAC используя ffmpeg
+Detects and converts EAC3 (E-AC-3) audio tracks to AAC using ffmpeg
 """
 
 import os
@@ -10,12 +10,12 @@ from typing import List, Optional, Tuple
 from pymediainfo import MediaInfo
 from dotenv import load_dotenv
 
-# Загрузка переменных окружения
+# Load environment variables
 load_dotenv()
 
 
 class AudioConverter:
-    """Конвертер EAC3 аудио в AAC"""
+    """EAC3 to AAC audio converter"""
 
     def __init__(self):
         self.ffmpeg_path = 'ffmpeg'
@@ -24,13 +24,13 @@ class AudioConverter:
 
     def detect_eac3_tracks(self, mkv_file: Path) -> List[int]:
         """
-        Определяет индексы EAC3 аудиотреков в MKV файле
+        Detects EAC3 audio track indexes in MKV file
 
         Args:
-            mkv_file: Путь к MKV файлу
+            mkv_file: Path to MKV file
 
         Returns:
-            List индексов треков с EAC3 кодеком
+            List of track indexes with EAC3 codec
         """
         eac3_tracks = []
 
@@ -40,9 +40,9 @@ class AudioConverter:
             for track in media_info.tracks:
                 if track.track_type == 'Audio':
                     codec = (track.codec_id or track.format or '').upper()
-                    # EAC3 может быть представлен как: E-AC-3, EAC3, A_EAC3
+                    # EAC3 can be represented as: E-AC-3, EAC3, A_EAC3
                     if 'EAC3' in codec or 'E-AC-3' in codec or 'A_EAC3' in codec:
-                        # track_id в MediaInfo начинается с 1, нам нужен 0-based index
+                        # track_id in MediaInfo starts from 1, we need 0-based index
                         track_index = track.track_id - 1 if track.track_id else 0
                         eac3_tracks.append(track_index)
 
@@ -53,15 +53,15 @@ class AudioConverter:
 
     def extract_audio_track(self, mkv_file: Path, track_index: int, output_file: Path) -> bool:
         """
-        Извлекает аудиотрек из MKV
+        Extracts audio track from MKV
 
         Args:
-            mkv_file: Путь к MKV файлу
-            track_index: Индекс трека для извлечения
-            output_file: Путь для сохранения извлечённого трека
+            mkv_file: Path to MKV file
+            track_index: Track index to extract
+            output_file: Path to save extracted track
 
         Returns:
-            True если успешно, False при ошибке
+            True if successful, False on error
         """
         try:
             # ffmpeg -i input.mkv -map 0:a:0 -c copy output.eac3
@@ -83,14 +83,14 @@ class AudioConverter:
 
     def convert_to_aac(self, input_audio: Path, output_audio: Path) -> bool:
         """
-        Конвертирует аудио в AAC
+        Converts audio to AAC
 
         Args:
-            input_audio: Путь к входному аудиофайлу
-            output_audio: Путь для выходного AAC файла
+            input_audio: Path to input audio file
+            output_audio: Path for output AAC file
 
         Returns:
-            True если успешно, False при ошибке
+            True if successful, False on error
         """
         try:
             # ffmpeg -i input.eac3 -c:a aac -b:a 192k output.aac
@@ -118,26 +118,26 @@ class AudioConverter:
         output_mkv: Path
     ) -> bool:
         """
-        Заменяет аудиотрек в MKV файле
+        Replaces audio track in MKV file
 
         Args:
-            mkv_file: Исходный MKV файл
-            track_index: Индекс трека для замены
-            new_audio: Новый аудиофайл (AAC)
-            output_mkv: Выходной MKV файл
+            mkv_file: Source MKV file
+            track_index: Track index to replace
+            new_audio: New audio file (AAC)
+            output_mkv: Output MKV file
 
         Returns:
-            True если успешно, False при ошибке
+            True if successful, False on error
         """
         try:
             # mkvmerge -o output.mkv input.mkv --audio-tracks !track_index new_audio.aac
-            # Удаляем старый трек и добавляем новый
+            # Remove old track and add new one
             cmd = [
                 self.mkvmerge_path,
                 '-o', str(output_mkv),
-                '--audio-tracks', f'!{track_index}',  # Исключаем старый трек
+                '--audio-tracks', f'!{track_index}',  # Exclude old track
                 str(mkv_file),
-                str(new_audio)  # Добавляем новый трек
+                str(new_audio)  # Add new track
             ]
 
             subprocess.run(cmd, check=True, capture_output=True, text=True)
@@ -149,45 +149,45 @@ class AudioConverter:
 
     def process_file(self, mkv_file: Path, temp_dir: Optional[Path] = None) -> Optional[Path]:
         """
-        Полный цикл обработки: обнаружение EAC3, конвертация, замена
+        Full processing cycle: EAC3 detection, conversion, replacement
 
         Args:
-            mkv_file: Путь к MKV файлу
-            temp_dir: Директория для временных файлов (если None, используется parent файла)
+            mkv_file: Path to MKV file
+            temp_dir: Directory for temporary files (if None, uses file's parent)
 
         Returns:
-            Path к обработанному файлу или None если обработка не требовалась/неудачна
+            Path to processed file or None if processing was not needed/unsuccessful
         """
         eac3_tracks = self.detect_eac3_tracks(mkv_file)
 
         if not eac3_tracks:
-            return None  # Нет EAC3 треков, обработка не нужна
+            return None  # No EAC3 tracks, processing not needed
 
         print(f"\n🔊 Обнаружено EAC3 треков: {len(eac3_tracks)} в {mkv_file.name}")
 
         if temp_dir is None:
             temp_dir = mkv_file.parent
 
-        # Обрабатываем только первый EAC3 трек для упрощения
-        # TODO: в будущем можно обрабатывать все треки
+        # Process only the first EAC3 track for simplicity
+        # TODO: in the future, can process all tracks
         track_index = eac3_tracks[0]
         print(f"   Конвертация трека #{track_index}...")
 
-        # Временные файлы
+        # Temporary files
         temp_eac3 = temp_dir / f"{mkv_file.stem}_temp.eac3"
         temp_aac = temp_dir / f"{mkv_file.stem}_temp.aac"
         output_mkv = temp_dir / f"{mkv_file.stem}_converted.mkv"
 
         try:
-            # 1. Извлекаем EAC3 трек
+            # 1. Extract EAC3 track
             if not self.extract_audio_track(mkv_file, track_index, temp_eac3):
                 return None
 
-            # 2. Конвертируем в AAC
+            # 2. Convert to AAC
             if not self.convert_to_aac(temp_eac3, temp_aac):
                 return None
 
-            # 3. Заменяем трек в MKV
+            # 3. Replace track in MKV
             if not self.replace_audio_in_mkv(mkv_file, track_index, temp_aac, output_mkv):
                 return None
 
@@ -195,7 +195,7 @@ class AudioConverter:
             return output_mkv
 
         finally:
-            # Очистка временных файлов
+            # Cleanup temporary files
             for temp_file in [temp_eac3, temp_aac]:
                 if temp_file.exists():
                     temp_file.unlink()

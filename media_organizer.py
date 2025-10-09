@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Media Organizer - автоматизация подготовки сериалов/аниме для Plex
-Поддержка различных форматов релизов и структур директорий
+Media Organizer - automated preparation of series/anime for Plex
+Support for various release formats and directory structures
 
-v3.0 - Модульная архитектура с preprocessing
+v3.0 - Modular architecture with preprocessing
 """
 
 import os
@@ -26,7 +26,7 @@ from utils.patterns import parse_directory_name
 
 
 class MediaOrganizer:
-    """Главный orchestrator для обработки медиафайлов"""
+    """Main orchestrator for processing media files"""
 
     def __init__(self, directory: str):
         self.directory = Path(directory)
@@ -46,7 +46,7 @@ class MediaOrganizer:
         self.preprocessor = Preprocessor(self.directory)
 
     def extract_info_from_dirname(self) -> dict:
-        """Извлекает информацию из названия директории"""
+        """Extracts information from directory name"""
         dirname = self.directory.name
         print(f"📂 Анализ названия директории: {dirname}")
 
@@ -60,7 +60,7 @@ class MediaOrganizer:
         return info
 
     def organize_files(self):
-        """Организует файлы по эпизодам"""
+        """Organizes files by episodes"""
         print("\n📋 Организация файлов по эпизодам...")
 
         for file in self.files:
@@ -77,7 +77,7 @@ class MediaOrganizer:
         print(f"✅ Организовано эпизодов: {len(self.episode_map)}")
 
     def confirm_series_info(self, ai_result: dict, dir_info: dict) -> SeriesInfo:
-        """Подтверждение информации о сериале"""
+        """Confirm series information"""
         print("\n" + "="*60)
         print("📺 ИНФОРМАЦИЯ О СЕРИАЛЕ")
         print("="*60)
@@ -131,7 +131,7 @@ class MediaOrganizer:
                 print("❌ Неверный выбор")
 
     def generate_plex_filename(self, episode_num: int) -> str:
-        """Генерирует имя файла по стандарту Plex"""
+        """Generates filename according to Plex standard"""
         series = self.series_info
         season_str = f"S{series.season:02d}"
         episode_str = f"E{episode_num:02d}"
@@ -140,7 +140,7 @@ class MediaOrganizer:
         return filename
 
     def create_output_structure(self) -> Path:
-        """Создаёт структуру директорий для Plex"""
+        """Creates directory structure for Plex"""
         series = self.series_info
 
         series_folder = f"{series.title}"
@@ -156,7 +156,7 @@ class MediaOrganizer:
         return output_path
 
     def show_processing_plan(self):
-        """Отображает план обработки"""
+        """Displays processing plan"""
         print("\n" + "="*60)
         print("📋 ПЛАН ОБРАБОТКИ")
         print("="*60)
@@ -185,46 +185,46 @@ class MediaOrganizer:
         print("="*60)
 
     def process(self):
-        """Основной процесс обработки"""
+        """Main processing workflow"""
         print("\n🎬 MEDIA ORGANIZER ДЛЯ PLEX v3.0")
         print("="*60)
 
-        # 1. Анализ названия директории
+        # 1. Analyze directory name
         dir_info = self.extract_info_from_dirname()
 
-        # 2. Сканирование файлов
+        # 2. Scan files
         self.files = self.scanner.scan_directory(self.directory)
         if not self.files:
             print("❌ Файлы не найдены")
             return
 
-        # 3. Организация файлов по эпизодам
+        # 3. Organize files by episodes
         self.organize_files()
 
-        # 4. Preprocessing (AVI→MKV, EAC3→AAC, встраивание треков)
+        # 4. Preprocessing (AVI→MKV, EAC3→AAC, embed tracks)
         if self.preprocessor.needs_preprocessing(self.files):
             self.preprocessor.preprocess_all_episodes(self.episode_map)
 
-        # 5. Анализ через AI
+        # 5. AI analysis
         ai_result = self.ai_analyzer.analyze(self.files, dir_info, self.directory.name)
 
-        # 6. Подтверждение информации
+        # 6. Confirm information
         self.series_info = self.confirm_series_info(ai_result, dir_info)
 
-        # 7. План обработки
+        # 7. Processing plan
         self.show_processing_plan()
 
-        # 8. Подтверждение
+        # 8. Confirmation
         confirm = input("\n▶️  Начать обработку? (y/n): ").strip().lower()
         if confirm != 'y':
             print("❌ Отменено")
             self.preprocessor.cleanup()
             return
 
-        # 9. Создание структуры
+        # 9. Create structure
         output_path = self.create_output_structure()
 
-        # 10. Обработка эпизодов (merge)
+        # 10. Process episodes (merge)
         print("\n" + "="*60)
         print("⚙️  ФИНАЛЬНОЕ ОБЪЕДИНЕНИЕ")
         print("="*60)
@@ -242,14 +242,14 @@ class MediaOrganizer:
             ):
                 success_count += 1
 
-        # 11. Валидация
+        # 11. Validation
         if success_count > 0:
             self.validator.validate_directory(output_path)
 
         # 12. Cleanup
         self.preprocessor.cleanup()
 
-        # 13. Итог
+        # 13. Summary
         print("\n" + "="*60)
         print("🎉 ОБРАБОТКА ЗАВЕРШЕНА!")
         print("="*60)
@@ -259,7 +259,7 @@ class MediaOrganizer:
 
 
 def main():
-    """Точка входа"""
+    """Entry point"""
     import sys
 
     if len(sys.argv) > 1:

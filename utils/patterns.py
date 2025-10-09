@@ -1,24 +1,24 @@
 """
-Regex паттерны для распознавания файлов и директорий
+Regex patterns for file and directory recognition
 """
 
 import re
 from typing import Tuple, Optional
 
 
-# Паттерн для названия директории: Название.S01.качество-ГРУППА
+# Pattern for directory name: Title.S01.quality-GROUP
 DIRECTORY_PATTERN = r'^(.+?)\.S(\d+).*?-(\w+)$'
 
-# Паттерн для номера эпизода: S01E01 или s01e01
+# Pattern for episode number: S01E01 or s01e01
 EPISODE_PATTERN = r'[Ss](\d+)[Ee](\d+)'
 
 
 def parse_directory_name(dirname: str) -> dict:
     """
-    Парсит название директории
+    Parses directory name
 
     Returns:
-        dict: {'title': str, 'season': int, 'release_group': str} или пустые значения
+        dict: {'title': str, 'season': int, 'release_group': str} or empty values
     """
     info = {
         'title': None,
@@ -38,10 +38,10 @@ def parse_directory_name(dirname: str) -> dict:
 
 def extract_episode_info(filename: str) -> Tuple[Optional[int], Optional[int]]:
     """
-    Извлекает номер сезона и эпизода из имени файла
+    Extracts season and episode number from filename
 
     Returns:
-        Tuple[season, episode] или (None, None)
+        Tuple[season, episode] or (None, None)
     """
     match = re.search(EPISODE_PATTERN, filename)
     if match:
@@ -54,18 +54,18 @@ def extract_episode_info(filename: str) -> Tuple[Optional[int], Optional[int]]:
 
 def detect_subtitle_track(filename: str, parent_dir: str = '') -> Optional[str]:
     """
-    Определяет тип субтитров по имени файла или директории
+    Determines subtitle type from filename or directory
 
     Returns:
-        str: Название трека ('Анимевод', 'Crunchyroll') или None
+        str: Track name ('Анимевод', 'Crunchyroll') or None
     """
-    # Из имени файла
+    # From filename
     if 'Анимевод' in filename or 'анимевод' in filename.lower():
         return 'Анимевод'
     if 'CR' in filename or filename.endswith('.ru_CR.ass'):
         return 'Crunchyroll'
 
-    # Из родительской директории
+    # From parent directory
     if 'Анимевод' in parent_dir:
         return 'Анимевод'
     if 'CR' in parent_dir:

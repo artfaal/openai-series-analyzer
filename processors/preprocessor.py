@@ -1,6 +1,6 @@
 """
 Preprocessor Coordinator
-Координирует все preprocessing операции: AVI→MKV, EAC3→AAC, встраивание треков
+Coordinates all preprocessing operations: AVI→MKV, EAC3→AAC, track embedding
 """
 
 from pathlib import Path
@@ -13,12 +13,12 @@ from processors.track_embedder import TrackEmbedder
 
 
 class Preprocessor:
-    """Координатор preprocessing операций"""
+    """Preprocessing operations coordinator"""
 
     def __init__(self, work_dir: Path):
         """
         Args:
-            work_dir: Рабочая директория для временных файлов
+            work_dir: Working directory for temporary files
         """
         self.work_dir = work_dir
         self.temp_dir = work_dir / ".preprocessing_temp"
@@ -30,21 +30,21 @@ class Preprocessor:
 
     def needs_preprocessing(self, files: List[MediaFile]) -> bool:
         """
-        Проверяет, нужен ли preprocessing
+        Checks if preprocessing is needed
 
         Args:
-            files: Список файлов
+            files: List of files
 
         Returns:
-            True если нужен preprocessing
+            True if preprocessing is needed
         """
-        # Проверяем наличие AVI файлов
+        # Check for AVI files
         has_avi = any(f.file_type == 'video' and f.path.suffix.lower() == '.avi' for f in files)
 
-        # Проверяем наличие внешних треков
+        # Check for external tracks
         has_external_tracks = any(f.file_type in ['audio', 'subtitle'] for f in files)
 
-        # TODO: Проверка EAC3 требует анализа MKV файлов
+        # TODO: EAC3 check requires MKV file analysis
 
         return has_avi or has_external_tracks
 
@@ -56,16 +56,16 @@ class Preprocessor:
         subtitles: List[MediaFile]
     ) -> Optional[PreprocessingResult]:
         """
-        Выполняет preprocessing для одного эпизода
+        Performs preprocessing for one episode
 
         Args:
-            episode_num: Номер эпизода
-            video: Видеофайл
-            audio_tracks: Внешние аудиотреки
-            subtitles: Внешние субтитры
+            episode_num: Episode number
+            video: Video file
+            audio_tracks: External audio tracks
+            subtitles: External subtitles
 
         Returns:
-            PreprocessingResult или None если preprocessing не нужен
+            PreprocessingResult or None if preprocessing is not needed
         """
         if not video:
             return None
@@ -79,7 +79,7 @@ class Preprocessor:
         current_file = video.path
         print(f"\n🔄 Preprocessing эпизода {episode_num}: {video.filename}")
 
-        # 1. Конвертация AVI → MKV
+        # 1. AVI → MKV conversion
         if self.avi_converter.needs_conversion(current_file):
             print("   ├─ AVI → MKV конвертация...")
             temp_mkv = self.temp_dir / f"ep{episode_num:02d}_from_avi.mkv"
@@ -94,7 +94,7 @@ class Preprocessor:
                 result.error_message = "Failed to convert AVI"
                 return result
 
-        # 2. Обнаружение и конвертация EAC3
+        # 2. EAC3 detection and conversion
         if current_file.suffix.lower() == '.mkv':
             print("   ├─ Проверка EAC3 аудио...")
             eac3_result = self.audio_converter.process_file(current_file, self.temp_dir)
@@ -104,7 +104,7 @@ class Preprocessor:
                 result.eac3_converted = True
                 result.operations_applied.append("EAC3→AAC")
 
-        # 3. Встраивание внешних треков
+        # 3. Embed external tracks
         if audio_tracks or subtitles:
             print("   └─ Встраивание внешних треков...")
             temp_embedded = self.temp_dir / f"ep{episode_num:02d}_embedded.mkv"
@@ -124,7 +124,7 @@ class Preprocessor:
                 result.error_message = "Failed to embed tracks"
                 return result
 
-        # Обновляем путь к файлу
+        # Update file path
         result.file_path = current_file
 
         if result.operations_applied:
@@ -139,13 +139,13 @@ class Preprocessor:
         episode_map: Dict[int, Dict]
     ) -> Dict[int, PreprocessingResult]:
         """
-        Выполняет preprocessing для всех эпизодов
+        Performs preprocessing for all episodes
 
         Args:
-            episode_map: Словарь {episode_num: {'video': MediaFile, 'audio': [...], 'subtitles': [...]}}
+            episode_map: Dictionary {episode_num: {'video': MediaFile, 'audio': [...], 'subtitles': [...]}}
 
         Returns:
-            Словарь {episode_num: PreprocessingResult}
+            Dictionary {episode_num: PreprocessingResult}
         """
         print("\n" + "="*60)
         print("🔄 PREPROCESSING")
@@ -166,12 +166,12 @@ class Preprocessor:
             if result:
                 results[ep_num] = result
 
-                # Обновляем episode_map с новым путём к файлу
+                # Update episode_map with new file path
                 if result.success and result.file_path != ep_data['video'].path:
                     ep_data['video'].path = result.file_path
                     ep_data['video'].filename = result.file_path.name
 
-                    # Очищаем внешние треки если они были встроены
+                    # Clear external tracks if they were embedded
                     if result.tracks_embedded:
                         ep_data['audio'] = []
                         ep_data['subtitles'] = []
@@ -183,7 +183,7 @@ class Preprocessor:
         return results
 
     def cleanup(self):
-        """Очищает временные файлы"""
+        """Cleans up temporary files"""
         if self.temp_dir.exists():
             import shutil
             shutil.rmtree(self.temp_dir)

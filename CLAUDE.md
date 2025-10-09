@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Media Organizer for Plex v3.0 - автоматизированный инструмент для подготовки сериалов и аниме для Plex Media Server.
+Media Organizer for Plex v3.0 - automated tool for preparing TV series and anime for Plex Media Server.
 
-**Основные возможности:**
-- Автоматическое распознавание названий через OpenAI API
-- **Preprocessing pipeline**: AVI→MKV, EAC3→AAC, встраивание треков
-- Объединение медиафайлов в Plex-совместимую структуру
-- Валидация с помощью MediaInfo
-- Модульная архитектура для лёгкого расширения
+**Key Features:**
+- Automatic title recognition via OpenAI API
+- **Preprocessing pipeline**: AVI→MKV, EAC3→AAC, track embedding
+- Media file merging into Plex-compatible structure
+- Validation with MediaInfo
+- Modular architecture for easy extension
 
 ## Setup
 
@@ -42,7 +42,7 @@ python media_organizer.py /path/to/series/directory
 
 ## Architecture
 
-### Модульная структура
+### Modular Structure
 
 ```
 openai-series-analizer/
@@ -58,94 +58,96 @@ openai-series-analizer/
 │   ├── track_embedder.py       # Embed external tracks
 │   ├── merger.py               # Final MKV merging
 │   └── validator.py            # MediaInfo validation
+├── config/
+│   └── prompts.py              # AI prompt templates
 └── utils/
     └── patterns.py             # Regex patterns
 ```
 
-**Data models** (models/data_models.py):
-- `MediaFile` - информация о файле
-- `SeriesInfo` - метаданные сериала
-- `MediaValidationResult` - результаты валидации
-- `PreprocessingResult` - результаты preprocessing
+**Data Models** (models/data_models.py):
+- `MediaFile` - file information
+- `SeriesInfo` - series metadata
+- `MediaValidationResult` - validation results
+- `PreprocessingResult` - preprocessing results
 
-**Main orchestrator** (media_organizer.py):
-- Координирует все processors
-- Управляет episode_map
-- Обрабатывает пользовательский ввод
+**Main Orchestrator** (media_organizer.py):
+- Coordinates all processors
+- Manages episode_map
+- Handles user input
 
 ### Processing Workflow
 
 1. **Directory Analysis** (utils/patterns.py):
-   - Парсит название директории по паттерну `Название.S01.качество-ГРУППА`
-   - Извлекает: название, сезон, релиз-группу
+   - Parses directory name using pattern `Title.S01.quality-GROUP`
+   - Extracts: title, season, release group
 
 2. **File Scanning** (processors/scanner.py):
-   - Рекурсивно сканирует директорию
-   - Классифицирует файлы: video (.mkv, .mp4, .avi), audio (.mka, .aac), subtitle (.srt, .ass)
-   - Извлекает номера эпизодов из имён файлов (паттерн S01E01)
-   - Определяет треки субтитров (Анимевод, Crunchyroll)
-   - Обнаруживает дубликаты субтитров
+   - Recursively scans directory
+   - Classifies files: video (.mkv, .mp4, .avi), audio (.mka, .aac), subtitle (.srt, .ass)
+   - Extracts episode numbers from filenames (S01E01 pattern)
+   - Detects subtitle tracks (Animevod, Crunchyroll)
+   - Identifies duplicate subtitles
 
 3. **File Organization** (media_organizer.py):
-   - Группирует файлы в `episode_map` по номерам эпизодов
-   - Фильтрует дубликаты субтитров
+   - Groups files into `episode_map` by episode numbers
+   - Filters duplicate subtitles
 
 4. **Preprocessing** (processors/preprocessor.py) - **NEW**:
-   - **Conditional**: запускается только если нужно
-   - **AVI Conversion**: .avi → .mkv с помощью ffmpeg (remux)
-   - **EAC3 Conversion**: обнаруживает EAC3, конвертирует в AAC
-   - **Track Embedding**: встраивает внешние .mka и .ass/.srt в MKV
-   - Создаёт временные файлы в `.preprocessing_temp/`
+   - **Conditional**: runs only when needed
+   - **AVI Conversion**: .avi → .mkv using ffmpeg (remux)
+   - **EAC3 Conversion**: detects EAC3, converts to AAC
+   - **Track Embedding**: embeds external .mka and .ass/.srt into MKV
+   - Creates temporary files in `.preprocessing_temp/`
 
 5. **AI Analysis** (processors/ai_analyzer.py):
-   - Использует OpenAI GPT-4o для определения официального английского названия
-   - Определяет год выхода и подтверждает сезон
-   - Fallback на локальное распознавание при отсутствии API ключа
+   - Uses OpenAI GPT-4o to determine official English title
+   - Determines release year and confirms season
+   - Falls back to local recognition if API key is missing
 
 6. **User Confirmation** (media_organizer.py):
-   - Интерактивное подтверждение/исправление метаданных
-   - Опции: принять, исправить название, исправить всё
+   - Interactive confirmation/correction of metadata
+   - Options: accept, correct title, correct all
 
 7. **Final Merging** (processors/merger.py):
-   - Использует `mkvmerge` для финального объединения
-   - Устанавливает правильные названия треков субтитров
-   - Выходной формат: `Series Title - S01E01.mkv`
+   - Uses `mkvmerge` for final merging
+   - Sets correct subtitle track names
+   - Output format: `Series Title - S01E01.mkv`
 
 8. **Output Structure** (media_organizer.py):
-   - Создаёт Plex-совместимую структуру: `Series Title (Year)/Season 01/`
+   - Creates Plex-compatible structure: `Series Title (Year)/Season 01/`
 
 9. **Validation** (processors/validator.py):
-   - Анализирует созданные MKV файлы с помощью MediaInfo
-   - Проверяет: длительность, количество треков, кодеки, разрешение
-   - Выявляет ошибки и предупреждения
+   - Analyzes created MKV files with MediaInfo
+   - Checks: duration, track count, codecs, resolution
+   - Identifies errors and warnings
 
 10. **Cleanup**:
-    - Удаляет временные файлы preprocessing
+    - Removes temporary preprocessing files
 
 ## Important Notes
 
 ### External Dependencies
 
 **Required:**
-- **mkvmerge** (MKVToolNix) - для объединения медиафайлов
-- **mediainfo** - для анализа и валидации
-- **ffmpeg** - для AVI→MKV и EAC3→AAC конвертации
+- **mkvmerge** (MKVToolNix) - for merging media files
+- **mediainfo** - for analysis and validation
+- **ffmpeg** - for AVI→MKV and EAC3→AAC conversion
 
 ### File Pattern Recognition
-- Эпизоды: `[Ss](\d+)[Ee](\d+)` (utils/patterns.py)
-- Директории: `^(.+?)\.S(\d+).*?-(\w+)$` (utils/patterns.py)
+- Episodes: `[Ss](\d+)[Ee](\d+)` (utils/patterns.py)
+- Directories: `^(.+?)\.S(\d+).*?-(\w+)$` (utils/patterns.py)
 
 ### Preprocessing Features
-- **AVI Detection**: по расширению `.avi` (processors/avi_converter.py)
-- **EAC3 Detection**: через MediaInfo analysis (processors/audio_converter.py)
-- **Track Embedding**: встраивание внешних .mka и .ass/.srt (processors/track_embedder.py)
+- **AVI Detection**: by `.avi` extension (processors/avi_converter.py)
+- **EAC3 Detection**: via MediaInfo analysis (processors/audio_converter.py)
+- **Track Embedding**: embeds external .mka and .ass/.srt (processors/track_embedder.py)
 
 ### Key Modules
-- `processors/preprocessor.py` - координатор preprocessing, управляет временными файлами
-- `processors/audio_converter.py` - обнаруживает EAC3 треки, извлекает, конвертирует в AAC, заменяет
-- `processors/avi_converter.py` - ffmpeg remux (без перекодирования видео)
-- `processors/scanner.py` - сканирование с дедупликацией субтитров
-- `processors/validator.py` - валидация через MediaInfo
+- `processors/preprocessor.py` - preprocessing coordinator, manages temp files
+- `processors/audio_converter.py` - detects EAC3 tracks, extracts, converts to AAC, replaces
+- `processors/avi_converter.py` - ffmpeg remux (no video re-encoding)
+- `processors/scanner.py` - scanning with subtitle deduplication
+- `processors/validator.py` - validation via MediaInfo
 
 ## Development Guidelines
 
@@ -155,11 +157,12 @@ openai-series-analizer/
 - Future-proof for Docker deployment
 
 ### Configuration Management
-- **API keys and secrets**: в `.env` file (никогда не коммитить)
-- **AI prompts**: в `.env` file для гибкости
-- **Important parameters**: в `.env` или config file (model name, bitrates, etc.)
-- **Unimportant parameters**: можно хардкодить в коде
+- **API keys and secrets**: in `.env` file (never commit)
+- **AI prompts**: in `config/prompts.py` for flexibility (multiline prompts don't work well in .env)
+- **Important parameters**: in `.env` file (model name, bitrates, temperatures, etc.)
+- **Unimportant parameters**: can be hardcoded in code
 - `.env` is in `.gitignore` - never commit secrets
+- **Always add comments** to `.env` file explaining each parameter
 
 ### Git Workflow
 1. Make changes in small batches
@@ -182,3 +185,15 @@ openai-series-analizer/
 ### Testing
 - Keep all tests in separate `tests/` directory
 - Do not mix tests with application code
+
+### Code Organization Principles
+- **Organize for maintainability**: Structure the project to make it easy for Claude to navigate and maintain
+- **Only Claude writes code**: Design code to be comfortable for AI-assisted development
+- **Leverage AI analysis**: Use OpenAI API in places where AI analysis can improve result quality (e.g., title recognition, metadata extraction)
+- **Self-documenting code**: Write clear, self-explanatory code that's easy to understand later
+
+### Documentation Language
+- **CLAUDE.md**: Must be in English
+- **README.md**: Must be in English
+- **Code comments**: Must be in English
+- **User-facing messages**: Can be in Russian (print statements, interactive prompts)

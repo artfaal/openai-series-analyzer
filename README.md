@@ -1,32 +1,32 @@
 # Media Organizer for Plex v3.0
 
-Автоматизированный инструмент для подготовки сериалов и аниме к импорту в Plex Media Server с модульной архитектурой и preprocessing pipeline.
+Automated tool for preparing TV series and anime for Plex Media Server import with modular architecture and preprocessing pipeline.
 
-## Возможности
+## Features
 
-### Preprocessing (NEW в v3.0)
-- 🔄 **AVI → MKV конвертация**: автоматическая конвертация .avi файлов с помощью ffmpeg
-- 🔊 **EAC3 → AAC конвертация**: обнаружение и конвертация EAC3 аудио (TV-совместимое)
-- 📦 **Встраивание треков**: автоматическое встраивание внешних .mka и .ass/.srt в MKV
-- ⚡ **Условное выполнение**: preprocessing запускается только когда нужно
+### Preprocessing (NEW in v3.0)
+- 🔄 **AVI → MKV conversion**: automatic .avi file conversion using ffmpeg
+- 🔊 **EAC3 → AAC conversion**: detection and conversion of EAC3 audio (TV-compatible)
+- 📦 **Track embedding**: automatic embedding of external .mka and .ass/.srt into MKV
+- ⚡ **Conditional execution**: preprocessing runs only when needed
 
-### Основные функции
-- 📂 **Автоматическое распознавание** названий сериалов через OpenAI API
-- 🎬 **Объединение медиафайлов**: видео + аудиодорожки + субтитры в один MKV
-- 🏷️ **Plex-совместимые имена**: автоматическое переименование по стандарту `Series Title - S01E01.mkv`
-- 📁 **Правильная структура**: создание директорий `Series Title (Year)/Season 01/`
-- 🔍 **Валидация файлов**: проверка созданных файлов с помощью MediaInfo
-- 🎭 **Поддержка субтитров**: определение и маркировка треков (Анимевод, Crunchyroll)
-- ♻️ **Дедупликация**: автоматическое удаление дубликатов субтитров
+### Core Features
+- 📂 **Automatic recognition** of series titles via OpenAI API
+- 🎬 **Media file merging**: video + audio tracks + subtitles into one MKV
+- 🏷️ **Plex-compatible names**: automatic renaming to standard `Series Title - S01E01.mkv`
+- 📁 **Proper structure**: creates directories `Series Title (Year)/Season 01/`
+- 🔍 **File validation**: checks created files using MediaInfo
+- 🎭 **Subtitle support**: detection and marking of tracks (Animevod, Crunchyroll)
+- ♻️ **Deduplication**: automatic removal of duplicate subtitles
 
-### Архитектура
-- 🧩 **Модульная структура**: разделение на processors, models, utils
-- 🧪 **Тестируемость**: каждый процессор - отдельный модуль
-- 🔧 **Расширяемость**: легко добавлять новые процессоры
+### Architecture
+- 🧩 **Modular structure**: separation into processors, models, utils
+- 🧪 **Testability**: each processor is a separate module
+- 🔧 **Extensibility**: easy to add new processors
 
-## Требования
+## Requirements
 
-### Системные зависимости
+### System Dependencies
 
 ```bash
 # macOS
@@ -36,84 +36,84 @@ brew install mkvtoolnix mediainfo ffmpeg
 apt-get install mkvtoolnix mediainfo ffmpeg
 ```
 
-### Python зависимости
+### Python Dependencies
 
 ```bash
-# Активация виртуального окружения
+# Activate virtual environment
 source venv/bin/activate
 
-# Установка зависимостей
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-## Настройка
+## Configuration
 
-Создайте файл `.env` в корне проекта:
+Create a `.env` file in the project root:
 
 ```env
 OPENAI_API_KEY=your-api-key-here
 ```
 
-## Использование
+## Usage
 
 ```bash
-# Интерактивный режим
+# Interactive mode
 python media_organizer.py
 
-# С указанием директории
+# With directory specified
 python media_organizer.py /path/to/series/directory
 ```
 
 ## Workflow
 
-1. **Анализ директории** - парсинг названия и метаданных из имени папки
-2. **Сканирование файлов** - поиск видео, аудио и субтитров
-3. **Организация** - группировка файлов по эпизодам
-4. **Preprocessing** (NEW) - условная обработка:
-   - Конвертация AVI → MKV (если есть .avi)
-   - Конвертация EAC3 → AAC (если обнаружен EAC3)
-   - Встраивание внешних треков (если есть .mka/.ass/.srt)
-5. **AI распознавание** - определение официального названия сериала
-6. **Подтверждение** - интерактивное исправление при необходимости
-7. **Финальное объединение** - создание итоговых MKV файлов
-8. **Валидация** - проверка созданных файлов (длительность, треки, кодеки)
-9. **Cleanup** - удаление временных файлов
+1. **Directory Analysis** - parse title and metadata from folder name
+2. **File Scanning** - search for video, audio and subtitles
+3. **Organization** - group files by episodes
+4. **Preprocessing** (NEW) - conditional processing:
+   - Convert AVI → MKV (if .avi files exist)
+   - Convert EAC3 → AAC (if EAC3 detected)
+   - Embed external tracks (if .mka/.ass/.srt exist)
+5. **AI Recognition** - determine official series title
+6. **Confirmation** - interactive correction if needed
+7. **Final Merging** - create final MKV files
+8. **Validation** - check created files (duration, tracks, codecs)
+9. **Cleanup** - remove temporary files
 
-## Пример
+## Example
 
-**Входная структура:**
+**Input structure:**
 ```
 Frieren.S01.1080p-GRUPPE/
 ├── Frieren.S01E01.mkv
 ├── Frieren.S01E01.ru.mka
-├── Субтитры/
-│   ├── Анимевод/
+├── Subtitles/
+│   ├── Animevod/
 │   │   └── Frieren.S01E01.ru_Animevod.ass
 │   └── CR/
 │       └── Frieren.S01E01.ru_CR.ass
 ```
 
-**Выходная структура:**
+**Output structure:**
 ```
 Frieren Beyond Journey's End (2023)/
 └── Season 01/
     └── Frieren Beyond Journey's End - S01E01.mkv
         ├── Video: H.264
         ├── Audio: AAC (Russian)
-        ├── Subtitle: Russian [Анимевод]
+        ├── Subtitle: Russian [Animevod]
         └── Subtitle: Russian [Crunchyroll]
 ```
 
-## Валидация
+## Validation
 
-После обработки автоматически запускается валидация всех созданных файлов:
+After processing, automatic validation of all created files runs:
 
-- ✅ Проверка наличия видео/аудио треков
-- ⏱️ Проверка длительности (защита от битых файлов)
-- 📊 Отображение кодеков и разрешения
-- 💾 Размер файлов
-- ⚠️ Предупреждения о потенциальных проблемах
+- ✅ Check for video/audio tracks
+- ⏱️ Duration check (protection from broken files)
+- 📊 Display codecs and resolution
+- 💾 File sizes
+- ⚠️ Warnings about potential issues
 
-## Лицензия
+## License
 
 MIT

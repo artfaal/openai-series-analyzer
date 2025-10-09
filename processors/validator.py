@@ -1,6 +1,6 @@
 """
 Media Validator
-Валидация медиафайлов с помощью MediaInfo
+Media file validation using MediaInfo
 """
 
 from pathlib import Path
@@ -10,32 +10,32 @@ from models.data_models import MediaValidationResult
 
 
 class MediaValidator:
-    """Валидатор медиафайлов"""
+    """Media file validator"""
 
     def validate_file(self, file_path: Path) -> MediaValidationResult:
         """
-        Валидирует медиафайл с помощью MediaInfo
+        Validates media file using MediaInfo
 
         Args:
-            file_path: Путь к файлу
+            file_path: Path to file
 
         Returns:
-            MediaValidationResult с результатами валидации
+            MediaValidationResult with validation results
         """
         result = MediaValidationResult(file_path=file_path, is_valid=False)
 
         try:
-            # Получаем размер файла
+            # Get file size
             result.file_size_mb = file_path.stat().st_size / (1024 * 1024)
 
-            # Анализируем с помощью MediaInfo
+            # Analyze using MediaInfo
             media_info = MediaInfo.parse(str(file_path))
 
-            # Собираем информацию о треках
+            # Collect track information
             for track in media_info.tracks:
                 if track.track_type == 'General':
                     if track.duration:
-                        result.duration = track.duration / 1000  # конвертируем из мс в секунды
+                        result.duration = track.duration / 1000  # convert from ms to seconds
 
                 elif track.track_type == 'Video':
                     result.video_tracks += 1
@@ -53,7 +53,7 @@ class MediaValidator:
                 elif track.track_type == 'Text':
                     result.subtitle_tracks += 1
 
-            # Валидация
+            # Validation
             if result.video_tracks == 0:
                 result.errors.append("Нет видеодорожки")
             elif result.video_tracks > 1:
@@ -65,7 +65,7 @@ class MediaValidator:
             if not result.duration or result.duration < 60:
                 result.errors.append(f"Слишком короткое видео: {result.duration:.1f}s")
 
-            # Файл считается валидным если нет критичных ошибок
+            # File is considered valid if there are no critical errors
             result.is_valid = len(result.errors) == 0
 
         except Exception as e:
@@ -75,7 +75,7 @@ class MediaValidator:
         return result
 
     def print_validation_result(self, validation: MediaValidationResult):
-        """Выводит результат валидации в читаемом виде"""
+        """Prints validation result in readable format"""
         status = "✅" if validation.is_valid else "❌"
         print(f"\n{status} {validation.file_path.name}")
         print(f"   Размер: {validation.file_size_mb:.1f} MB")
@@ -109,10 +109,10 @@ class MediaValidator:
 
     def validate_directory(self, output_path: Path) -> tuple[int, int]:
         """
-        Валидирует все MKV файлы в директории
+        Validates all MKV files in directory
 
         Args:
-            output_path: Путь к директории с файлами
+            output_path: Path to directory with files
 
         Returns:
             Tuple (valid_count, invalid_count)

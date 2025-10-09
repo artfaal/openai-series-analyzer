@@ -1,6 +1,6 @@
 """
 AI Analyzer
-Использует OpenAI API для распознавания названий сериалов
+Uses OpenAI API for series title recognition
 """
 
 import os
@@ -12,14 +12,14 @@ from dotenv import load_dotenv
 from models.data_models import MediaFile
 from config.prompts import AI_SYSTEM_PROMPT, AI_USER_PROMPT_TEMPLATE
 
-# Загрузка переменных окружения
+# Load environment variables
 load_dotenv()
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 openai.api_key = OPENAI_API_KEY
 
 
 class AIAnalyzer:
-    """Анализатор сериалов через OpenAI API"""
+    """Series analyzer via OpenAI API"""
 
     def __init__(self):
         self.api_key = OPENAI_API_KEY
@@ -35,24 +35,24 @@ class AIAnalyzer:
         directory_name: str
     ) -> Dict:
         """
-        Анализирует файлы с помощью OpenAI API
+        Analyzes files using OpenAI API
 
         Args:
-            files: Список MediaFile объектов
-            dir_info: Информация из названия директории
-            directory_name: Название директории
+            files: List of MediaFile objects
+            dir_info: Information extracted from directory name
+            directory_name: Directory name
 
         Returns:
-            Dict с ключами: title, year, season, total_episodes, needs_confirmation
+            Dict with keys: title, year, season, total_episodes, needs_confirmation
         """
-        # Проверяем наличие API ключа
+        # Check for API key
         if not self.api_key:
             print("\n⚠️  OpenAI API ключ не найден в .env файле, используем локальное распознавание")
             return self._get_fallback_result(dir_info, files)
 
         print("\n🤖 Анализ через OpenAI API...")
 
-        # Группируем файлы для лучшего представления
+        # Group files for better presentation
         video_files = [f for f in files if f.file_type == 'video']
         subtitle_tracks = set(f.subtitle_track for f in files
                              if f.file_type == 'subtitle' and f.subtitle_track)
@@ -86,7 +86,7 @@ class AIAnalyzer:
 
             content = response.choices[0].message.content.strip()
 
-            # Убираем markdown блоки если есть
+            # Remove markdown blocks if present
             if content.startswith('```'):
                 content = content.split('```')[1]
                 if content.startswith('json'):
@@ -106,7 +106,7 @@ class AIAnalyzer:
             return self._get_fallback_result(dir_info, files)
 
     def _get_fallback_result(self, dir_info: Dict, files: List[MediaFile]) -> Dict:
-        """Возвращает результат на основе локального анализа"""
+        """Returns result based on local analysis"""
         return {
             'title': dir_info.get('title', 'Unknown'),
             'year': None,

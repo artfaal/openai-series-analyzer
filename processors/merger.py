@@ -1,6 +1,6 @@
 """
 MKV Merger
-Объединяет видео, аудио и субтитры в финальный MKV файл
+Combines video, audio and subtitles into final MKV file
 """
 
 import subprocess
@@ -10,7 +10,7 @@ from models.data_models import MediaFile
 
 
 class MKVMerger:
-    """Объединяет медиафайлы в MKV контейнер"""
+    """Combines media files into MKV container"""
 
     def __init__(self):
         self.mkvmerge_path = 'mkvmerge'
@@ -23,16 +23,16 @@ class MKVMerger:
         output_file: Path
     ) -> bool:
         """
-        Объединяет видео, аудио и субтитры в один MKV
+        Combines video, audio and subtitles into one MKV
 
         Args:
-            video: Видеофайл
-            audio_tracks: Список аудиотреков
-            subtitles: Список субтитров
-            output_file: Путь для выходного файла
+            video: Video file
+            audio_tracks: List of audio tracks
+            subtitles: List of subtitles
+            output_file: Path for output file
 
         Returns:
-            True если успешно, False при ошибке
+            True if successful, False on error
         """
         if not video:
             print(f"⚠️  Видео не найдено")
@@ -43,17 +43,17 @@ class MKVMerger:
         print(f"   Аудио: {len(audio_tracks)} треков")
         print(f"   Субтитры: {len(subtitles)} треков")
 
-        # Формируем команду mkvmerge
+        # Build mkvmerge command
         cmd = [self.mkvmerge_path, '-o', str(output_file)]
 
-        # Добавляем видео
+        # Add video
         cmd.extend([str(video.path)])
 
-        # Добавляем аудио дорожки
+        # Add audio tracks
         for audio in audio_tracks:
             cmd.extend([str(audio.path)])
 
-        # Добавляем субтитры с правильными названиями треков
+        # Add subtitles with proper track names
         for sub in subtitles:
             track_name = sub.subtitle_track or "Russian"
             cmd.extend([

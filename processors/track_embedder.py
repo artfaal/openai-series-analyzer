@@ -1,6 +1,6 @@
 """
 Track Embedder
-Встраивает внешние аудио и субтитры в MKV контейнер
+Embeds external audio and subtitles into MKV container
 """
 
 import subprocess
@@ -10,7 +10,7 @@ from models.data_models import MediaFile
 
 
 class TrackEmbedder:
-    """Встраивает внешние треки (аудио, субтитры) в MKV"""
+    """Embeds external tracks (audio, subtitles) into MKV"""
 
     def __init__(self):
         self.mkvmerge_path = 'mkvmerge'
@@ -21,14 +21,14 @@ class TrackEmbedder:
         subtitle_files: List[MediaFile]
     ) -> bool:
         """
-        Проверяет наличие внешних треков
+        Checks for external tracks
 
         Args:
-            audio_files: Список внешних аудиофайлов
-            subtitle_files: Список внешних субтитров
+            audio_files: List of external audio files
+            subtitle_files: List of external subtitles
 
         Returns:
-            True если есть внешние треки
+            True if external tracks exist
         """
         return len(audio_files) > 0 or len(subtitle_files) > 0
 
@@ -40,19 +40,19 @@ class TrackEmbedder:
         output_file: Optional[Path] = None
     ) -> Optional[Path]:
         """
-        Встраивает внешние треки в MKV файл
+        Embeds external tracks into MKV file
 
         Args:
-            mkv_file: Исходный MKV файл
-            audio_files: Список внешних аудиофайлов для встраивания
-            subtitle_files: Список субтитров для встраивания
-            output_file: Выходной файл (если None, заменяет оригинал)
+            mkv_file: Source MKV file
+            audio_files: List of external audio files to embed
+            subtitle_files: List of subtitles to embed
+            output_file: Output file (if None, replaces original)
 
         Returns:
-            Path к результирующему файлу или None при ошибке
+            Path to resulting file or None on error
         """
         if not self.has_external_tracks(audio_files, subtitle_files):
-            return mkv_file  # Нечего встраивать
+            return mkv_file  # Nothing to embed
 
         if output_file is None:
             output_file = mkv_file.parent / f"{mkv_file.stem}_embedded.mkv"
@@ -61,21 +61,21 @@ class TrackEmbedder:
         print(f"   Аудио: {len(audio_files)}, Субтитры: {len(subtitle_files)}")
 
         try:
-            # Формируем команду mkvmerge
+            # Build mkvmerge command
             cmd = [
                 self.mkvmerge_path,
                 '-o', str(output_file),
                 str(mkv_file)
             ]
 
-            # Добавляем аудиотреки
+            # Add audio tracks
             for audio in audio_files:
                 cmd.append(str(audio.path))
                 print(f"   + Аудио: {audio.filename}")
 
-            # Добавляем субтитры с метаданными
+            # Add subtitles with metadata
             for sub in subtitle_files:
-                # Устанавливаем язык и название трека
+                # Set language and track name
                 track_name = sub.subtitle_track or "Russian"
                 cmd.extend([
                     '--language', '0:rus',
