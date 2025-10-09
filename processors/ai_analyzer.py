@@ -10,6 +10,7 @@ from typing import List, Dict
 import openai
 from dotenv import load_dotenv
 from models.data_models import MediaFile
+from config.prompts import AI_SYSTEM_PROMPT, AI_USER_PROMPT_TEMPLATE
 
 # Загрузка переменных окружения
 load_dotenv()
@@ -22,6 +23,10 @@ class AIAnalyzer:
 
     def __init__(self):
         self.api_key = OPENAI_API_KEY
+        self.model = os.getenv('OPENAI_MODEL', 'gpt-4o')
+        self.temperature = float(os.getenv('OPENAI_TEMPERATURE', '0.3'))
+        self.system_prompt = AI_SYSTEM_PROMPT
+        self.user_prompt_template = AI_USER_PROMPT_TEMPLATE
 
     def analyze(
         self,
@@ -67,38 +72,16 @@ class AIAnalyzer:
 - Релиз-группа: {dir_info.get('release_group', 'не определена')}
 """
 
-        prompt = f"""Проанализируй информацию о сериале/аниме:
-
-{file_summary}
-
-Задачи:
-1. Определи правильное название сериала на английском (для Plex)
-2. Определи год выхода (если возможно)
-3. Подтверди или исправь номер сезона
-4. Укажи общее количество эпизодов
-
-Ответь ТОЛЬКО валидным JSON без дополнительного текста:
-{{
-  "title": "название на английском (без точек, через пробелы)",
-  "year": год или null,
-  "season": номер_сезона,
-  "total_episodes": количество,
-  "needs_confirmation": true/false (если не уверен в названии)
-}}
-
-Примечания:
-- Название должно быть официальным английским названием для баз данных типа TVDB/TMDB
-- Если это аниме, используй ромадзи латиницей
-- Год - это год выхода сериала, не год релиза"""
+        prompt = self.user_prompt_template.format(file_summary=file_summary)
 
         try:
             response = openai.chat.completions.create(
-                model="gpt-4o",
+                model=self.model,
                 messages=[
-                    {"role": "system", "content": "Ты эксперт по аниме и сериалам. Отвечай ТОЛЬКО валидным JSON без markdown блоков."},
+                    {"role": "system", "content": self.system_prompt},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.3
+                temperature=self.temperature
             )
 
             content = response.choices[0].message.content.strip()

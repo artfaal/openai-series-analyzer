@@ -3,10 +3,15 @@ EAC3 Audio Converter
 Обнаруживает и конвертирует EAC3 (E-AC-3) аудиотреки в AAC используя ffmpeg
 """
 
+import os
 import subprocess
 from pathlib import Path
 from typing import List, Optional, Tuple
 from pymediainfo import MediaInfo
+from dotenv import load_dotenv
+
+# Загрузка переменных окружения
+load_dotenv()
 
 
 class AudioConverter:
@@ -15,6 +20,7 @@ class AudioConverter:
     def __init__(self):
         self.ffmpeg_path = 'ffmpeg'
         self.mkvmerge_path = 'mkvmerge'
+        self.aac_bitrate = os.getenv('AAC_BITRATE', '192k')
 
     def detect_eac3_tracks(self, mkv_file: Path) -> List[int]:
         """
@@ -92,7 +98,7 @@ class AudioConverter:
                 self.ffmpeg_path,
                 '-i', str(input_audio),
                 '-c:a', 'aac',
-                '-b:a', '192k',  # битрейт 192 kbps
+                '-b:a', self.aac_bitrate,
                 '-y',
                 str(output_audio)
             ]

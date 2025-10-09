@@ -154,19 +154,30 @@ openai-series-analizer/
 - Never use global Python packages
 - Future-proof for Docker deployment
 
-### Configuration
-- API keys and secrets in `.env` file (media_organizer.py:22)
+### Configuration Management
+- **API keys and secrets**: в `.env` file (никогда не коммитить)
+- **AI prompts**: в `.env` file для гибкости
+- **Important parameters**: в `.env` или config file (model name, bitrates, etc.)
+- **Unimportant parameters**: можно хардкодить в коде
 - `.env` is in `.gitignore` - never commit secrets
 
-### Workflow
+### Git Workflow
 1. Make changes in small batches
 2. Test changes immediately when possible
-3. Before committing:
-   - Check for unwanted files in directory (`ls -la`)
-   - Remove temporary files with `rm -f`
+3. **Before committing:**
+   - Check for unwanted files: `ls -la`
+   - Add unwanted files to `.gitignore` if found
+   - Remove temporary files: `rm -f`
    - Update CLAUDE.md if architecture/setup changed
    - Update README.md if new functionality added
 4. Commit after each batch of related changes
+
+### .gitignore Rules
+- Add files that shouldn't be in git immediately
+- Python compilation artifacts (`__pycache__/`, `*.pyc`) - OK to keep locally, must be in .gitignore
+- Temporary files (`.preprocessing_temp/`, etc.)
+- Environment files (`.env`)
+- Virtual environments (`venv/`)
 
 ### Testing
 - Keep all tests in separate `tests/` directory
