@@ -23,13 +23,6 @@ brew install mkvtoolnix mediainfo
 apt-get install mkvtoolnix mediainfo
 ```
 
-## Configuration
-
-Create `.env` file in project root:
-```env
-OPENAI_API_KEY=your-api-key-here
-```
-
 ## Running the Script
 
 ```bash
@@ -122,10 +115,16 @@ python media_organizer.py /path/to/series/directory
 - Never use global Python packages
 - Future-proof for Docker deployment
 
+### Configuration
+- API keys and secrets in `.env` file (media_organizer.py:22)
+- `.env` is in `.gitignore` - never commit secrets
+
 ### Workflow
 1. Make changes in small batches
 2. Test changes immediately when possible
 3. Before committing:
+   - Check for unwanted files in directory (`ls -la`)
+   - Remove temporary files with `rm -f`
    - Update CLAUDE.md if architecture/setup changed
    - Update README.md if new functionality added
 4. Commit after each batch of related changes
@@ -133,7 +132,3 @@ python media_organizer.py /path/to/series/directory
 ### Testing
 - Keep all tests in separate `tests/` directory
 - Do not mix tests with application code
-
-### Configuration
-- API keys and secrets in `.env` file (media_organizer.py:22)
-- `.env` is in `.gitignore` - never commit secrets
