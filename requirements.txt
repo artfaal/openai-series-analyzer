@@ -1,3 +1,4 @@
 openai==2.2.0
 pydantic==2.11.10
 python-dotenv==1.0.1
+pymediainfo==6.1.0

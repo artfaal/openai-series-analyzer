@@ -15,9 +15,19 @@ source venv/bin/activate
 # Install Python dependencies
 pip install -r requirements.txt
 
-# External dependency required: MKVToolNix (для mkvmerge)
-# macOS: brew install mkvtoolnix
-# Linux: apt-get install mkvtoolnix
+# External dependencies required
+# macOS:
+brew install mkvtoolnix mediainfo
+
+# Linux:
+apt-get install mkvtoolnix mediainfo
+```
+
+## Configuration
+
+Create `.env` file in project root:
+```env
+OPENAI_API_KEY=your-api-key-here
 ```
 
 ## Running the Script
@@ -39,6 +49,7 @@ python media_organizer.py /path/to/series/directory
 **Key data structures:**
 - `MediaFile` - dataclass для хранения информации о файле (путь, тип, номер эпизода, язык, субтитры)
 - `SeriesInfo` - dataclass для метаданных сериала (название, год, сезон, количество эпизодов)
+- `MediaValidationResult` - dataclass для результатов валидации (треки, кодеки, ошибки)
 - `episode_map` - словарь, группирующий видео/аудио/субтитры по номерам эпизодов
 
 ### Processing Workflow
@@ -76,17 +87,25 @@ python media_organizer.py /path/to/series/directory
    - Создаёт Plex-совместимую структуру: `Series Title (Year)/Season 01/`
    - Именует файлы по стандарту Plex: `Series Title - S01E01.mkv`
 
+8. **Validation** (`validate_output_files`):
+   - Анализирует созданные MKV файлы с помощью MediaInfo
+   - Проверяет: длительность, количество треков, кодеки, разрешение
+   - Выявляет ошибки (нет видео, слишком короткое) и предупреждения
+   - Выводит детальную статистику по каждому файлу
+
 ## Important Notes
 
-### API Key Management
-**CRITICAL**: Строка 18 содержит hardcoded OpenAI API key. При работе с кодом:
-- Никогда не коммитить изменения с реальным API ключом
-- Использовать переменные окружения: `os.getenv('OPENAI_API_KEY')`
-- API ключ нужно удалить и заменить на env var
-
 ### External Dependencies
-- **mkvmerge** (из пакета MKVToolNix) - обязателен для объединения медиафайлов
-- Проверка наличия: `which mkvmerge`
+
+**Required:**
+- **mkvmerge** (MKVToolNix) - для объединения медиафайлов
+  - macOS: `brew install mkvtoolnix`
+  - Linux: `apt-get install mkvtoolnix`
+
+**Optional (for validation):**
+- **mediainfo** - для анализа и валидации медиафайлов
+  - macOS: `brew install mediainfo`
+  - Linux: `apt-get install mediainfo`
 
 ### File Pattern Recognition
 - Эпизоды: регулярное выражение `[Ss](\d+)[Ee](\d+)` (media_organizer.py:83)
@@ -95,5 +114,22 @@ python media_organizer.py /path/to/series/directory
 ### Subtitle Track Detection
 - Логика в `detect_subtitle_track()` (media_organizer.py:93)
 - Проверяет имена файлов и родительские директории на ключевые слова (Анимевод, CR)
-- Всегда делай коммит после пачки изменений
-- Запомни, что наш проект активируется через activate. Не пытайся использовать глобальные пакеты и питон
+
+## Development Guidelines
+
+### Environment
+- **ALWAYS** activate venv: `source venv/bin/activate`
+- Never use global Python packages
+- Future-proof for Docker deployment
+
+### Workflow
+1. Make changes in small batches
+2. Test changes immediately when possible
+3. Before committing:
+   - Update CLAUDE.md if architecture/setup changed
+   - Update README.md if new functionality added
+4. Commit after each batch of related changes
+
+### Configuration
+- API keys and secrets in `.env` file (media_organizer.py:22)
+- `.env` is in `.gitignore` - never commit secrets

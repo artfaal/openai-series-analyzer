@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from collections import defaultdict
 import openai
 from dotenv import load_dotenv
+from pymediainfo import MediaInfo
 
 # Загрузка переменных окружения из .env
 load_dotenv()
@@ -42,6 +43,22 @@ class SeriesInfo:
     season: int
     total_episodes: int
     release_group: Optional[str] = None
+
+@dataclass
+class MediaValidationResult:
+    """Результат валидации медиафайла"""
+    file_path: Path
+    is_valid: bool
+    duration: Optional[float] = None  # в секундах
+    video_tracks: int = 0
+    audio_tracks: int = 0
+    subtitle_tracks: int = 0
+    video_codec: Optional[str] = None
+    audio_codecs: List[str] = field(default_factory=list)
+    resolution: Optional[str] = None
+    file_size_mb: Optional[float] = None
+    errors: List[str] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
 
 class MediaOrganizer:
     def __init__(self, directory: str):
@@ -414,6 +431,124 @@ class MediaOrganizer:
             print(f"❌ Ошибка mkvmerge: {e.stderr}")
             return False
 
+    def validate_media_file(self, file_path: Path) -> MediaValidationResult:
+        """Валидирует медиафайл с помощью MediaInfo"""
+        result = MediaValidationResult(file_path=file_path, is_valid=False)
+
+        try:
+            # Получаем размер файла
+            result.file_size_mb = file_path.stat().st_size / (1024 * 1024)
+
+            # Анализируем с помощью MediaInfo
+            media_info = MediaInfo.parse(str(file_path))
+
+            # Собираем информацию о треках
+            for track in media_info.tracks:
+                if track.track_type == 'General':
+                    if track.duration:
+                        result.duration = track.duration / 1000  # конвертируем из мс в секунды
+
+                elif track.track_type == 'Video':
+                    result.video_tracks += 1
+                    if not result.video_codec:
+                        result.video_codec = track.codec_id or track.format
+                    if track.width and track.height:
+                        result.resolution = f"{track.width}x{track.height}"
+
+                elif track.track_type == 'Audio':
+                    result.audio_tracks += 1
+                    codec = track.codec_id or track.format
+                    if codec and codec not in result.audio_codecs:
+                        result.audio_codecs.append(codec)
+
+                elif track.track_type == 'Text':
+                    result.subtitle_tracks += 1
+
+            # Валидация
+            if result.video_tracks == 0:
+                result.errors.append("Нет видеодорожки")
+            elif result.video_tracks > 1:
+                result.warnings.append(f"Несколько видеодорожек: {result.video_tracks}")
+
+            if result.audio_tracks == 0:
+                result.warnings.append("Нет аудиодорожек")
+
+            if not result.duration or result.duration < 60:
+                result.errors.append(f"Слишком короткое видео: {result.duration:.1f}s")
+
+            # Файл считается валидным если нет критичных ошибок
+            result.is_valid = len(result.errors) == 0
+
+        except Exception as e:
+            result.errors.append(f"Ошибка анализа: {str(e)}")
+            result.is_valid = False
+
+        return result
+
+    def print_validation_result(self, validation: MediaValidationResult):
+        """Выводит результат валидации в читаемом виде"""
+        status = "✅" if validation.is_valid else "❌"
+        print(f"\n{status} {validation.file_path.name}")
+        print(f"   Размер: {validation.file_size_mb:.1f} MB")
+
+        if validation.duration:
+            minutes = int(validation.duration // 60)
+            seconds = int(validation.duration % 60)
+            print(f"   Длительность: {minutes}m {seconds}s")
+
+        print(f"   Видео: {validation.video_tracks} трек(ов)", end="")
+        if validation.video_codec:
+            print(f" [{validation.video_codec}]", end="")
+        if validation.resolution:
+            print(f" {validation.resolution}", end="")
+        print()
+
+        print(f"   Аудио: {validation.audio_tracks} трек(ов)", end="")
+        if validation.audio_codecs:
+            print(f" [{', '.join(validation.audio_codecs)}]", end="")
+        print()
+
+        print(f"   Субтитры: {validation.subtitle_tracks} трек(ов)")
+
+        if validation.errors:
+            for error in validation.errors:
+                print(f"   ❌ {error}")
+
+        if validation.warnings:
+            for warning in validation.warnings:
+                print(f"   ⚠️  {warning}")
+
+    def validate_output_files(self, output_path: Path):
+        """Валидирует все созданные файлы"""
+        print("\n" + "="*60)
+        print("🔍 ВАЛИДАЦИЯ ВЫХОДНЫХ ФАЙЛОВ")
+        print("="*60)
+
+        mkv_files = sorted(output_path.glob("*.mkv"))
+
+        if not mkv_files:
+            print("⚠️  MKV файлы не найдены")
+            return
+
+        valid_count = 0
+        invalid_count = 0
+
+        for mkv_file in mkv_files:
+            validation = self.validate_media_file(mkv_file)
+            self.print_validation_result(validation)
+
+            if validation.is_valid:
+                valid_count += 1
+            else:
+                invalid_count += 1
+
+        print("\n" + "="*60)
+        print(f"📊 Результаты валидации:")
+        print(f"   ✅ Валидных: {valid_count}")
+        print(f"   ❌ С ошибками: {invalid_count}")
+        print(f"   📁 Всего файлов: {len(mkv_files)}")
+        print("="*60)
+
     def show_processing_plan(self):
         """Отображает план обработки"""
         print("\n" + "="*60)
@@ -489,7 +624,11 @@ class MediaOrganizer:
             if self.merge_episode(ep_num, output_file):
                 success_count += 1
 
-        # 10. Итог
+        # 10. Валидация
+        if success_count > 0:
+            self.validate_output_files(output_path)
+
+        # 11. Итог
         print("\n" + "="*60)
         print("🎉 ОБРАБОТКА ЗАВЕРШЕНА!")
         print("="*60)
