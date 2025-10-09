@@ -130,6 +130,10 @@ python media_organizer.py /path/to/series/directory
    - Update README.md if new functionality added
 4. Commit after each batch of related changes
 
+### Testing
+- Keep all tests in separate `tests/` directory
+- Do not mix tests with application code
+
 ### Configuration
 - API keys and secrets in `.env` file (media_organizer.py:22)
 - `.env` is in `.gitignore` - never commit secrets
