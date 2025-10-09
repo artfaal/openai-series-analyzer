@@ -192,8 +192,16 @@ openai-series-analizer/
 - **Leverage AI analysis**: Use OpenAI API in places where AI analysis can improve result quality (e.g., title recognition, metadata extraction)
 - **Self-documenting code**: Write clear, self-explanatory code that's easy to understand later
 
-### Documentation Language
-- **CLAUDE.md**: Must be in English
-- **README.md**: Must be in English
-- **Code comments**: Must be in English
-- **User-facing messages**: Can be in Russian (print statements, interactive prompts)
+### Language Policy
+
+**Communication with User:**
+- **Always communicate in Russian** when talking to the user
+- Use Russian for explanations, questions, status updates, and all user interaction
+- This applies regardless of documentation language
+
+**Documentation and Code:**
+- **CLAUDE.md**: Must be in English (for Claude Code compatibility)
+- **README.md**: Must be in English (for open-source accessibility)
+- **Code comments**: Must be in English (docstrings, inline comments)
+- **User-facing messages**: Should be in Russian (print statements, interactive prompts, error messages)
+- **AI prompts**: Should be in Russian (better understanding by Russian-speaking AI models)
