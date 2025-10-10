@@ -6,7 +6,12 @@ Scans directory and classifies media files
 from pathlib import Path
 from typing import List
 from models.data_models import MediaFile
-from utils.patterns import extract_episode_numbers_batch, detect_subtitle_tracks_batch, detect_subtitle_languages_batch
+from utils.patterns import (
+    extract_episode_numbers_batch,
+    detect_subtitle_tracks_batch,
+    detect_subtitle_languages_batch,
+    detect_audio_studios_batch
+)
 
 
 class FileScanner:
@@ -33,6 +38,7 @@ class FileScanner:
 
         files = []
         subtitle_files = []  # Collect subtitle files for batch processing
+        audio_files = []  # Collect audio files for batch processing
         subtitle_hashes = {}  # For detecting duplicates
 
         # First pass: collect all files (without episode extraction)
@@ -68,6 +74,8 @@ class FileScanner:
 
                 if file_type == 'subtitle':
                     subtitle_files.append(media_file)
+                elif file_type == 'audio':
+                    audio_files.append(media_file)
 
                 files.append(media_file)
 
@@ -129,6 +137,20 @@ class FileScanner:
                     print(f"🔄 Дубликат субтитров: {media_file.filename}")
                 else:
                     subtitle_hashes[hash_key] = media_file.path
+
+        # Batch process audio studio detection
+        if audio_files:
+            print(f"🤖 AI-распознавание аудиостудий ({len(audio_files)} файлов)...")
+
+            audio_info = [
+                {'filename': f.filename, 'parent_dir': f.path.parent.name}
+                for f in audio_files
+            ]
+            audio_studios = detect_audio_studios_batch(audio_info)
+
+            # Apply results
+            for idx, media_file in enumerate(audio_files):
+                media_file.audio_track = audio_studios.get(idx)
 
         print(f"✅ Найдено файлов: {len(files)}")
         print(f"   - Видео: {sum(1 for f in files if f.file_type == 'video')}")

@@ -17,6 +17,7 @@ class MediaFile:
     episode_number: Optional[int] = None
     season_number: Optional[int] = None
     subtitle_track: Optional[str] = None  # Subtitle track name (Animevod, CR, etc.)
+    audio_track: Optional[str] = None  # Audio studio name (AniLibria, Studio Band, etc.)
     is_duplicate: bool = False
 
 

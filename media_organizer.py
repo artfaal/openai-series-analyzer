@@ -30,8 +30,9 @@ from utils.filename_normalizer import normalize_series_title
 class MediaOrganizer:
     """Main orchestrator for processing media files"""
 
-    def __init__(self, directory: str):
+    def __init__(self, directory: str, auto_confirm: bool = False):
         self.directory = Path(directory)
+        self.auto_confirm = auto_confirm
         self.files = []
         self.series_info: Optional[SeriesInfo] = None
         self.episode_map = defaultdict(lambda: {
@@ -95,6 +96,17 @@ class MediaOrganizer:
             print("\n⚠️  AI не уверен в правильности названия")
 
         print("="*60)
+
+        # Auto-confirm mode
+        if self.auto_confirm:
+            print("\n✅ Авто-подтверждение: информация принята")
+            return SeriesInfo(
+                title=ai_result['title'],
+                year=ai_result.get('year'),
+                season=ai_result['season'],
+                total_episodes=ai_result['total_episodes'],
+                release_group=dir_info.get('release_group')
+            )
 
         while True:
             choice = input("\n[1] Всё верно\n[2] Исправить название\n[3] Исправить всё\nВыбор: ").strip()
@@ -209,11 +221,14 @@ class MediaOrganizer:
         self.show_processing_plan()
 
         # 8. Confirmation
-        confirm = input("\n▶️  Начать обработку? (y/n): ").strip().lower()
-        if confirm != 'y':
-            print("❌ Отменено")
-            self.preprocessor.cleanup()
-            return
+        if self.auto_confirm:
+            print("\n✅ Авто-подтверждение: начинаем обработку")
+        else:
+            confirm = input("\n▶️  Начать обработку? (y/n): ").strip().lower()
+            if confirm != 'y':
+                print("❌ Отменено")
+                self.preprocessor.cleanup()
+                return
 
         # 9. Create structure
         output_path = self.create_output_structure()
@@ -255,9 +270,28 @@ class MediaOrganizer:
 def main():
     """Entry point"""
     import sys
+    import argparse
 
-    if len(sys.argv) > 1:
-        directory = sys.argv[1]
+    parser = argparse.ArgumentParser(
+        description='Media Organizer для Plex v4.0 - автоматическая подготовка сериалов',
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        'directory',
+        nargs='?',
+        help='Путь к директории с сериалом'
+    )
+    parser.add_argument(
+        '--auto-confirm', '-y',
+        action='store_true',
+        help='Автоматическое подтверждение без интерактивного режима'
+    )
+
+    args = parser.parse_args()
+
+    # Get directory
+    if args.directory:
+        directory = args.directory
     else:
         directory = input("Введите путь к директории с сериалом: ").strip()
 
@@ -266,7 +300,7 @@ def main():
         return
 
     try:
-        organizer = MediaOrganizer(directory)
+        organizer = MediaOrganizer(directory, auto_confirm=args.auto_confirm)
         organizer.process()
     except KeyboardInterrupt:
         print("\n\n❌ Прервано пользователем")

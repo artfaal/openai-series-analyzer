@@ -12,7 +12,8 @@ from config.prompts import (
     AI_DIRECTORY_PARSING_PROMPT,
     AI_SUBTITLE_DETECTION_PROMPT,
     AI_SUBTITLE_LANGUAGE_PROMPT,
-    AI_EPISODE_EXTRACTION_PROMPT
+    AI_EPISODE_EXTRACTION_PROMPT,
+    AI_AUDIO_STUDIO_DETECTION_PROMPT
 )
 
 # Load environment variables
@@ -357,3 +358,64 @@ def detect_subtitle_languages_batch(subtitle_files: list) -> dict:
         print(f"❌ {error_msg}")
         # Don't raise - return empty dict as fallback
         return {}
+
+
+def detect_audio_studios_batch(audio_info_list: list) -> dict:
+    """
+    Batch detection of audio studios using AI
+
+    Args:
+        audio_info_list: List of dicts with {'filename': str, 'parent_dir': str}
+
+    Returns:
+        dict: {index: studio_name or None}
+
+    Raises:
+        Exception: If OpenAI API request fails
+    """
+    if not audio_info_list:
+        return {}
+
+    try:
+        client = _get_openai_client()
+        model = os.getenv('OPENAI_SIMPLE_MODEL', 'gpt-4o-mini')
+
+        # Build batch prompt
+        files_text = "\n".join([
+            f"{i}. Файл: {info['filename']}, Директория: {info['parent_dir']}"
+            for i, info in enumerate(audio_info_list)
+        ])
+
+        prompt = AI_AUDIO_STUDIO_DETECTION_PROMPT.format(audio_files_info=files_text)
+
+        response = client.responses.create(
+            model=model,
+            input=prompt
+        )
+
+        output_text = response.output_text.strip()
+
+        # Remove markdown blocks if present
+        if output_text.startswith('```'):
+            output_text = output_text.split('```')[1]
+            if output_text.startswith('json'):
+                output_text = output_text[4:]
+            output_text = output_text.strip()
+
+        # Extract only JSON part
+        first_bracket = output_text.find('[')
+        last_bracket = output_text.rfind(']')
+        if first_bracket != -1 and last_bracket != -1:
+            json_text = output_text[first_bracket:last_bracket + 1]
+        else:
+            json_text = output_text
+
+        results = json.loads(json_text)
+
+        # Convert to dict by index
+        return {item['index']: item.get('audio_track') for item in results}
+
+    except Exception as e:
+        error_msg = f"Failed to detect audio studios via OpenAI API (batch): {e}"
+        print(f"❌ {error_msg}")
+        raise Exception(error_msg)
