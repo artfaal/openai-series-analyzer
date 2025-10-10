@@ -8,18 +8,17 @@ import json
 from typing import Tuple, Optional
 from openai import OpenAI
 from dotenv import load_dotenv
-from config.prompts import AI_DIRECTORY_PARSING_PROMPT, AI_SUBTITLE_DETECTION_PROMPT, AI_SUBTITLE_LANGUAGE_PROMPT
+from config.prompts import (
+    AI_DIRECTORY_PARSING_PROMPT,
+    AI_SUBTITLE_DETECTION_PROMPT,
+    AI_SUBTITLE_LANGUAGE_PROMPT,
+    AI_EPISODE_EXTRACTION_PROMPT
+)
 
 # Load environment variables
 load_dotenv()
 
-# Patterns for episode numbers (kept as regex - simple and reliable)
-# S01E01 or s01e01
-EPISODE_PATTERN_STANDARD = r'[Ss](\d+)[Ee](\d+)'
-# " S4 - 01" or "S4 - 01" format
-EPISODE_PATTERN_DASH = r'[Ss](\d+)\s*-\s*(\d+)'
-# Just episode number like " - 01" or "- 01"
-EPISODE_PATTERN_SIMPLE = r'\s-\s(\d+)\s'
+# Episode number extraction is now done via AI (see extract_episode_numbers_batch)
 
 # Initialize OpenAI client
 _openai_client = None
@@ -78,38 +77,84 @@ def parse_directory_name(dirname: str) -> dict:
         raise Exception(error_msg)
 
 
+def extract_episode_numbers_batch(filenames: list) -> dict:
+    """
+    Batch extraction of episode numbers using AI
+
+    Args:
+        filenames: List of filenames
+
+    Returns:
+        dict: {index: {'season': int or None, 'episode': int or None}}
+
+    Raises:
+        Exception: If OpenAI API request fails
+    """
+    if not filenames:
+        return {}
+
+    try:
+        client = _get_openai_client()
+        model = os.getenv('OPENAI_SIMPLE_MODEL', 'gpt-4o-mini')
+
+        # Build batch prompt
+        files_text = "\n".join([
+            f"{i}. {filename}"
+            for i, filename in enumerate(filenames)
+        ])
+
+        prompt = AI_EPISODE_EXTRACTION_PROMPT.format(filenames=files_text)
+
+        response = client.responses.create(
+            model=model,
+            input=prompt
+        )
+
+        output_text = response.output_text.strip()
+
+        # Remove markdown blocks if present
+        if output_text.startswith('```'):
+            output_text = output_text.split('```')[1]
+            if output_text.startswith('json'):
+                output_text = output_text[4:]
+            output_text = output_text.strip()
+
+        # Extract only JSON part (sometimes AI adds explanations after JSON)
+        first_bracket = output_text.find('[')
+        last_bracket = output_text.rfind(']')
+        if first_bracket != -1 and last_bracket != -1:
+            json_text = output_text[first_bracket:last_bracket + 1]
+        else:
+            json_text = output_text
+
+        results = json.loads(json_text)
+
+        # Convert to dict indexed by file index
+        return {
+            item['index']: {
+                'season': item.get('season'),
+                'episode': item.get('episode')
+            }
+            for item in results
+        }
+
+    except Exception as e:
+        error_msg = f"Failed to extract episode numbers via OpenAI API: {e}"
+        print(f"❌ {error_msg}")
+        raise Exception(error_msg)
+
+
 def extract_episode_info(filename: str) -> Tuple[Optional[int], Optional[int]]:
     """
-    Extracts season and episode number from filename using multiple patterns
-
-    Supports formats:
-    - S01E01 or s01e01
-    - S4 - 01 or S04 - 01
-    - " - 01" (extracts episode only)
+    Legacy function for single file episode extraction
+    Uses batch function internally (inefficient, use extract_episode_numbers_batch for multiple files)
 
     Returns:
         Tuple[season, episode] or (None, None)
     """
-    # Try standard S01E01 format
-    match = re.search(EPISODE_PATTERN_STANDARD, filename)
-    if match:
-        season = int(match.group(1))
-        episode = int(match.group(2))
-        return season, episode
-
-    # Try S4 - 01 format
-    match = re.search(EPISODE_PATTERN_DASH, filename)
-    if match:
-        season = int(match.group(1))
-        episode = int(match.group(2))
-        return season, episode
-
-    # Try simple " - 01" format (episode only, season is None)
-    match = re.search(EPISODE_PATTERN_SIMPLE, filename)
-    if match:
-        episode = int(match.group(1))
-        return None, episode
-
+    result = extract_episode_numbers_batch([filename])
+    if 0 in result:
+        return result[0].get('season'), result[0].get('episode')
     return None, None
 
 

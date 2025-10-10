@@ -6,7 +6,7 @@ Scans directory and classifies media files
 from pathlib import Path
 from typing import List
 from models.data_models import MediaFile
-from utils.patterns import extract_episode_info, detect_subtitle_tracks_batch, detect_subtitle_languages_batch
+from utils.patterns import extract_episode_numbers_batch, detect_subtitle_tracks_batch, detect_subtitle_languages_batch
 
 
 class FileScanner:
@@ -35,7 +35,7 @@ class FileScanner:
         subtitle_files = []  # Collect subtitle files for batch processing
         subtitle_hashes = {}  # For detecting duplicates
 
-        # First pass: collect all files
+        # First pass: collect all files (without episode extraction)
         for item in directory.rglob('*'):
             # Skip preprocessing temp directory
             if '.preprocessing_temp' in item.parts:
@@ -58,20 +58,30 @@ class FileScanner:
                     break
 
             if file_type:
-                season, episode = extract_episode_info(item.name)
-
                 media_file = MediaFile(
                     path=item,
                     filename=item.name,
                     file_type=file_type,
-                    season_number=season,
-                    episode_number=episode
+                    season_number=None,  # Will be filled by batch processing
+                    episode_number=None  # Will be filled by batch processing
                 )
 
                 if file_type == 'subtitle':
                     subtitle_files.append(media_file)
 
                 files.append(media_file)
+
+        # Batch extract episode numbers for all files
+        if files:
+            print(f"🤖 AI-распознавание номеров эпизодов ({len(files)} файлов)...")
+            filenames = [f.filename for f in files]
+            episode_results = extract_episode_numbers_batch(filenames)
+
+            # Apply results
+            for idx, media_file in enumerate(files):
+                if idx in episode_results:
+                    media_file.season_number = episode_results[idx].get('season')
+                    media_file.episode_number = episode_results[idx].get('episode')
 
         # Batch process subtitle track detection and language detection
         if subtitle_files:
