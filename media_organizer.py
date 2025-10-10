@@ -30,9 +30,10 @@ from utils.filename_normalizer import normalize_series_title
 class MediaOrganizer:
     """Main orchestrator for processing media files"""
 
-    def __init__(self, directory: str, auto_confirm: bool = False):
+    def __init__(self, directory: str, auto_confirm: bool = False, delete_source: bool = False):
         self.directory = Path(directory)
         self.auto_confirm = auto_confirm
+        self.delete_source = delete_source
         self.files = []
         self.series_info: Optional[SeriesInfo] = None
         self.episode_map = defaultdict(lambda: {
@@ -258,12 +259,24 @@ class MediaOrganizer:
         # 12. Cleanup
         self.preprocessor.cleanup()
 
-        # 13. Summary
+        # 13. Delete source directory if requested and all episodes succeeded
+        if self.delete_source and success_count == len(self.episode_map) and success_count > 0:
+            print("\n🗑️  Удаление исходной директории...")
+            try:
+                import shutil
+                shutil.rmtree(self.directory)
+                print(f"✅ Исходная директория удалена: {self.directory}")
+            except Exception as e:
+                print(f"⚠️  Не удалось удалить исходную директорию: {e}")
+
+        # 14. Summary
         print("\n" + "="*60)
         print("🎉 ОБРАБОТКА ЗАВЕРШЕНА!")
         print("="*60)
         print(f"✅ Успешно: {success_count}/{len(self.episode_map)} эпизодов")
         print(f"📁 Путь: {output_path}")
+        if self.delete_source and success_count == len(self.episode_map):
+            print(f"🗑️  Исходная директория удалена")
         print("="*60)
 
 
@@ -274,40 +287,85 @@ def main():
 
     parser = argparse.ArgumentParser(
         description='Media Organizer для Plex v4.0 - автоматическая подготовка сериалов',
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Примеры использования:
+  python media_organizer.py "/path/to/series"
+  python media_organizer.py "/path/to/series1,/path/to/series2,/path/to/series3" -y
+  python media_organizer.py "/path/to/series" --auto-confirm --delete-source
+        """
     )
     parser.add_argument(
-        'directory',
+        'directories',
         nargs='?',
-        help='Путь к директории с сериалом'
+        help='Путь к директории с сериалом или несколько путей через запятую'
     )
     parser.add_argument(
         '--auto-confirm', '-y',
         action='store_true',
         help='Автоматическое подтверждение без интерактивного режима'
     )
+    parser.add_argument(
+        '--delete-source', '-d',
+        action='store_true',
+        help='Удалить исходную директорию после успешной обработки'
+    )
 
     args = parser.parse_args()
 
-    # Get directory
-    if args.directory:
-        directory = args.directory
+    # Get directories
+    if args.directories:
+        # Split by comma and strip whitespace
+        directories = [d.strip() for d in args.directories.split(',')]
     else:
-        directory = input("Введите путь к директории с сериалом: ").strip()
+        directory_input = input("Введите путь к директории (или несколько через запятую): ").strip()
+        directories = [d.strip() for d in directory_input.split(',')]
 
-    if not os.path.isdir(directory):
-        print("❌ Директория не найдена")
+    # Validate all directories exist
+    invalid_dirs = [d for d in directories if not os.path.isdir(d)]
+    if invalid_dirs:
+        print("❌ Следующие директории не найдены:")
+        for d in invalid_dirs:
+            print(f"   - {d}")
         return
 
-    try:
-        organizer = MediaOrganizer(directory, auto_confirm=args.auto_confirm)
-        organizer.process()
-    except KeyboardInterrupt:
-        print("\n\n❌ Прервано пользователем")
-    except Exception as e:
-        print(f"\n❌ Ошибка: {e}")
-        import traceback
-        traceback.print_exc()
+    # Process each directory
+    total_dirs = len(directories)
+    successful = 0
+    failed = 0
+
+    for idx, directory in enumerate(directories, 1):
+        if total_dirs > 1:
+            print("\n" + "="*60)
+            print(f"📦 ОБРАБОТКА ДИРЕКТОРИИ {idx}/{total_dirs}")
+            print(f"📂 {directory}")
+            print("="*60)
+
+        try:
+            organizer = MediaOrganizer(
+                directory,
+                auto_confirm=args.auto_confirm,
+                delete_source=args.delete_source
+            )
+            organizer.process()
+            successful += 1
+        except KeyboardInterrupt:
+            print("\n\n❌ Прервано пользователем")
+            break
+        except Exception as e:
+            print(f"\n❌ Ошибка при обработке {directory}: {e}")
+            import traceback
+            traceback.print_exc()
+            failed += 1
+
+    # Final summary for multiple directories
+    if total_dirs > 1:
+        print("\n" + "="*60)
+        print("📊 ИТОГОВАЯ СТАТИСТИКА")
+        print("="*60)
+        print(f"✅ Успешно обработано: {successful}/{total_dirs}")
+        if failed > 0:
+            print(f"❌ Ошибок: {failed}/{total_dirs}")
+        print("="*60)
 
 
 if __name__ == "__main__":
