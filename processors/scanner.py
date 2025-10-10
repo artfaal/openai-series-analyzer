@@ -41,6 +41,10 @@ class FileScanner:
             if '.preprocessing_temp' in item.parts:
                 continue
 
+            # Skip macOS metadata files (._*)
+            if item.name.startswith('._'):
+                continue
+
             if not item.is_file() or item.name == 'Комментарий.txt':
                 continue
 
