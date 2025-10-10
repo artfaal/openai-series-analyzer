@@ -264,7 +264,21 @@ class MediaOrganizer:
             print("\n🗑️  Удаление исходной директории...")
             try:
                 import shutil
-                shutil.rmtree(self.directory)
+                import os
+
+                # Error handler for macOS metadata files
+                def onerror(func, path, exc_info):
+                    """Error handler for shutil.rmtree - ignore macOS metadata file errors"""
+                    if os.path.exists(path):
+                        os.chmod(path, 0o777)
+                        try:
+                            func(path)
+                        except:
+                            # Ignore errors for ._ files
+                            if not os.path.basename(path).startswith('._'):
+                                print(f"⚠️  Не удалось удалить: {path}")
+
+                shutil.rmtree(self.directory, onerror=onerror)
                 print(f"✅ Исходная директория удалена: {self.directory}")
             except Exception as e:
                 print(f"⚠️  Не удалось удалить исходную директорию: {e}")

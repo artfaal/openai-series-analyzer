@@ -188,5 +188,20 @@ class Preprocessor:
         """Cleans up temporary files"""
         if self.temp_dir.exists():
             import shutil
-            shutil.rmtree(self.temp_dir)
+
+            # Use ignore_errors to handle macOS metadata files (._*)
+            def onerror(func, path, exc_info):
+                """Error handler for shutil.rmtree - ignore macOS metadata file errors"""
+                import os
+                # Try to remove read-only flag and retry
+                if os.path.exists(path):
+                    os.chmod(path, 0o777)
+                    try:
+                        func(path)
+                    except:
+                        # Ignore errors for ._ files
+                        if not os.path.basename(path).startswith('._'):
+                            print(f"⚠️  Не удалось удалить: {path}")
+
+            shutil.rmtree(self.temp_dir, onerror=onerror)
             print(f"🧹 Временные файлы очищены")
