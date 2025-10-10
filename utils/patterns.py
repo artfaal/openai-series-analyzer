@@ -1,74 +1,314 @@
 """
-Regex patterns for file and directory recognition
+File and directory recognition using AI
 """
 
 import re
+import os
+import json
 from typing import Tuple, Optional
+from openai import OpenAI
+from dotenv import load_dotenv
+from config.prompts import AI_DIRECTORY_PARSING_PROMPT, AI_SUBTITLE_DETECTION_PROMPT, AI_SUBTITLE_LANGUAGE_PROMPT
+
+# Load environment variables
+load_dotenv()
+
+# Patterns for episode numbers (kept as regex - simple and reliable)
+# S01E01 or s01e01
+EPISODE_PATTERN_STANDARD = r'[Ss](\d+)[Ee](\d+)'
+# " S4 - 01" or "S4 - 01" format
+EPISODE_PATTERN_DASH = r'[Ss](\d+)\s*-\s*(\d+)'
+# Just episode number like " - 01" or "- 01"
+EPISODE_PATTERN_SIMPLE = r'\s-\s(\d+)\s'
+
+# Initialize OpenAI client
+_openai_client = None
 
 
-# Pattern for directory name: Title.S01.quality-GROUP
-DIRECTORY_PATTERN = r'^(.+?)\.S(\d+).*?-(\w+)$'
-
-# Pattern for episode number: S01E01 or s01e01
-EPISODE_PATTERN = r'[Ss](\d+)[Ee](\d+)'
+def _get_openai_client() -> OpenAI:
+    """Gets or creates OpenAI client"""
+    global _openai_client
+    if _openai_client is None:
+        api_key = os.getenv('OPENAI_API_KEY')
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY not found in .env file. Please add your API key.")
+        _openai_client = OpenAI(api_key=api_key)
+    return _openai_client
 
 
 def parse_directory_name(dirname: str) -> dict:
     """
-    Parses directory name
+    Parses directory name using AI
+
+    Args:
+        dirname: Directory name
 
     Returns:
-        dict: {'title': str, 'season': int, 'release_group': str} or empty values
+        dict: {'title': str, 'season': int, 'year': int, 'release_group': str}
+
+    Raises:
+        Exception: If OpenAI API request fails
     """
-    info = {
-        'title': None,
-        'season': None,
-        'year': None,
-        'release_group': None
-    }
+    try:
+        client = _get_openai_client()
+        model = os.getenv('OPENAI_SIMPLE_MODEL', 'gpt-4o-mini')
 
-    match = re.match(DIRECTORY_PATTERN, dirname)
-    if match:
-        info['title'] = match.group(1).replace('.', ' ')
-        info['season'] = int(match.group(2))
-        info['release_group'] = match.group(3)
+        prompt = AI_DIRECTORY_PARSING_PROMPT.format(dirname=dirname)
 
-    return info
+        response = client.responses.create(
+            model=model,
+            input=prompt
+        )
+
+        output_text = response.output_text.strip()
+
+        # Remove markdown blocks if present
+        if output_text.startswith('```'):
+            output_text = output_text.split('```')[1]
+            if output_text.startswith('json'):
+                output_text = output_text[4:]
+            output_text = output_text.strip()
+
+        result = json.loads(output_text)
+        return result
+
+    except Exception as e:
+        error_msg = f"Failed to parse directory name via OpenAI API: {e}"
+        print(f"❌ {error_msg}")
+        raise Exception(error_msg)
 
 
 def extract_episode_info(filename: str) -> Tuple[Optional[int], Optional[int]]:
     """
-    Extracts season and episode number from filename
+    Extracts season and episode number from filename using multiple patterns
+
+    Supports formats:
+    - S01E01 or s01e01
+    - S4 - 01 or S04 - 01
+    - " - 01" (extracts episode only)
 
     Returns:
         Tuple[season, episode] or (None, None)
     """
-    match = re.search(EPISODE_PATTERN, filename)
+    # Try standard S01E01 format
+    match = re.search(EPISODE_PATTERN_STANDARD, filename)
     if match:
         season = int(match.group(1))
         episode = int(match.group(2))
         return season, episode
 
+    # Try S4 - 01 format
+    match = re.search(EPISODE_PATTERN_DASH, filename)
+    if match:
+        season = int(match.group(1))
+        episode = int(match.group(2))
+        return season, episode
+
+    # Try simple " - 01" format (episode only, season is None)
+    match = re.search(EPISODE_PATTERN_SIMPLE, filename)
+    if match:
+        episode = int(match.group(1))
+        return None, episode
+
     return None, None
+
+
+def detect_subtitle_tracks_batch(file_info_list: list) -> dict:
+    """
+    Batch detection of subtitle tracks using AI
+
+    Args:
+        file_info_list: List of dicts with {'filename': str, 'parent_dir': str}
+
+    Returns:
+        dict: {index: track_name or None}
+
+    Raises:
+        Exception: If OpenAI API request fails
+    """
+    if not file_info_list:
+        return {}
+
+    try:
+        client = _get_openai_client()
+        model = os.getenv('OPENAI_SIMPLE_MODEL', 'gpt-4o-mini')
+
+        # Build batch prompt
+        files_text = "\n".join([
+            f"{i}. Файл: {info['filename']}, Директория: {info['parent_dir']}"
+            for i, info in enumerate(file_info_list)
+        ])
+
+        prompt = f"""Определи типы субтитров для следующих файлов (батч-обработка):
+
+{files_text}
+
+Возможные типы субтитров:
+- "Анимевод" (Animevod)
+- "Crunchyroll" (CR)
+- "BudLightSubs" (BudLight)
+- Другие студии озвучки (укажи название)
+- null (если не удаётся определить)
+
+Ответь ТОЛЬКО валидным JSON (массив объектов):
+[
+  {{"index": 0, "subtitle_track": "название" или null}},
+  {{"index": 1, "subtitle_track": "название" или null}},
+  ...
+]
+
+Примечания:
+- Индекс должен соответствовать номеру файла
+- Название трека должно быть на русском для русских студий"""
+
+        response = client.responses.create(
+            model=model,
+            input=prompt
+        )
+
+        output_text = response.output_text.strip()
+
+        # Remove markdown blocks if present
+        if output_text.startswith('```'):
+            output_text = output_text.split('```')[1]
+            if output_text.startswith('json'):
+                output_text = output_text[4:]
+            output_text = output_text.strip()
+
+        results = json.loads(output_text)
+
+        # Convert to dict by index
+        return {item['index']: item.get('subtitle_track') for item in results}
+
+    except Exception as e:
+        error_msg = f"Failed to detect subtitle tracks via OpenAI API (batch): {e}"
+        print(f"❌ {error_msg}")
+        raise Exception(error_msg)
 
 
 def detect_subtitle_track(filename: str, parent_dir: str = '') -> Optional[str]:
     """
     Determines subtitle type from filename or directory
 
+    NOTE: For better performance, use detect_subtitle_tracks_batch() for multiple files
+
+    Args:
+        filename: Filename
+        parent_dir: Parent directory name
+
     Returns:
-        str: Track name ('Анимевод', 'Crunchyroll') or None
+        str: Track name ('Анимевод', 'Crunchyroll', etc.) or None
     """
-    # From filename
-    if 'Анимевод' in filename or 'анимевод' in filename.lower():
-        return 'Анимевод'
-    if 'CR' in filename or filename.endswith('.ru_CR.ass'):
-        return 'Crunchyroll'
+    # Use batch method for single file
+    result = detect_subtitle_tracks_batch([{'filename': filename, 'parent_dir': parent_dir}])
+    return result.get(0)
 
-    # From parent directory
-    if 'Анимевод' in parent_dir:
-        return 'Анимевод'
-    if 'CR' in parent_dir:
-        return 'Crunchyroll'
 
-    return None
+def _read_subtitle_sample(file_path, max_lines=10, max_chars=500):
+    """
+    Reads a sample from subtitle file for language detection
+
+    Args:
+        file_path: Path to subtitle file
+        max_lines: Maximum lines to read
+        max_chars: Maximum characters to read
+
+    Returns:
+        str: Sample text from subtitle
+    """
+    from pathlib import Path
+
+    path = Path(file_path)
+    if not path.exists():
+        return ""
+
+    try:
+        # Try different encodings
+        for encoding in ['utf-8', 'utf-8-sig', 'cp1251', 'shift-jis']:
+            try:
+                with open(path, 'r', encoding=encoding) as f:
+                    lines = []
+                    total_chars = 0
+
+                    for line in f:
+                        line = line.strip()
+                        # Skip empty lines and subtitle metadata
+                        if not line or line.startswith('[') or '-->' in line or line.isdigit():
+                            continue
+
+                        lines.append(line)
+                        total_chars += len(line)
+
+                        if len(lines) >= max_lines or total_chars >= max_chars:
+                            break
+
+                    return '\n'.join(lines)
+            except (UnicodeDecodeError, LookupError):
+                continue
+
+    except Exception as e:
+        print(f"⚠️  Не удалось прочитать файл субтитров {path.name}: {e}")
+
+    return ""
+
+
+def detect_subtitle_languages_batch(subtitle_files: list) -> dict:
+    """
+    Batch detection of subtitle languages by analyzing content
+
+    Args:
+        subtitle_files: List of dicts with {'index': int, 'path': Path, 'filename': str}
+
+    Returns:
+        dict: {index: {'language': str, 'language_name': str}}
+
+    Raises:
+        Exception: If OpenAI API request fails
+    """
+    if not subtitle_files:
+        return {}
+
+    try:
+        client = _get_openai_client()
+        model = os.getenv('OPENAI_SIMPLE_MODEL', 'gpt-4o-mini')
+
+        # Read samples from subtitle files
+        samples_text = []
+        for item in subtitle_files:
+            sample = _read_subtitle_sample(item['path'])
+            samples_text.append(f"{item['index']}. Файл: {item['filename']}\nСодержимое:\n{sample[:300]}")
+
+        subtitles_samples = "\n\n".join(samples_text)
+
+        prompt = AI_SUBTITLE_LANGUAGE_PROMPT.format(subtitles_samples=subtitles_samples)
+
+        response = client.responses.create(
+            model=model,
+            input=prompt
+        )
+
+        output_text = response.output_text.strip()
+
+        # Remove markdown blocks if present
+        if output_text.startswith('```'):
+            output_text = output_text.split('```')[1]
+            if output_text.startswith('json'):
+                output_text = output_text[4:]
+            output_text = output_text.strip()
+
+        results = json.loads(output_text)
+
+        # Convert to dict by index
+        return {
+            item['index']: {
+                'language': item.get('language'),
+                'language_name': item.get('language_name')
+            }
+            for item in results
+        }
+
+    except Exception as e:
+        error_msg = f"Failed to detect subtitle languages via OpenAI API (batch): {e}"
+        print(f"❌ {error_msg}")
+        # Don't raise - return empty dict as fallback
+        return {}

@@ -4,10 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Media Organizer for Plex v3.0 - automated tool for preparing TV series and anime for Plex Media Server.
+Media Organizer for Plex v4.0 - AI-powered tool for preparing TV series and anime for Plex Media Server.
 
 **Key Features:**
-- Automatic title recognition via OpenAI API
+- **AI-powered recognition**: GPT-5 with web search for accurate title/year detection
+- **Smart pattern recognition**: AI-based file and directory parsing (no regex limitations)
 - **Preprocessing pipeline**: AVI→MKV, EAC3→AAC, track embedding
 - Media file merging into Plex-compatible structure
 - Validation with MediaInfo
@@ -61,7 +62,7 @@ openai-series-analizer/
 ├── config/
 │   └── prompts.py              # AI prompt templates
 └── utils/
-    └── patterns.py             # Regex patterns
+    └── patterns.py             # AI-powered pattern recognition
 ```
 
 **Data Models** (models/data_models.py):
@@ -75,34 +76,41 @@ openai-series-analizer/
 - Manages episode_map
 - Handles user input
 
+**AI Integration** (processors/ai_analyzer.py, utils/patterns.py):
+- GPT-5 with web search for main analysis
+- GPT-4o-mini for simple pattern recognition
+- No fallback to regex - OpenAI required
+
 ### Processing Workflow
 
 1. **Directory Analysis** (utils/patterns.py):
-   - Parses directory name using pattern `Title.S01.quality-GROUP`
-   - Extracts: title, season, release group
+   - AI-powered parsing of directory name
+   - Extracts: title, season, release group, year
+   - Uses GPT-4o-mini for fast, accurate parsing
 
 2. **File Scanning** (processors/scanner.py):
    - Recursively scans directory
    - Classifies files: video (.mkv, .mp4, .avi), audio (.mka, .aac), subtitle (.srt, .ass)
-   - Extracts episode numbers from filenames (S01E01 pattern)
-   - Detects subtitle tracks (Animevod, Crunchyroll)
+   - Extracts episode numbers from filenames (S01E01 pattern - regex kept for reliability)
+   - AI-powered subtitle track detection (utils/patterns.py)
    - Identifies duplicate subtitles
 
 3. **File Organization** (media_organizer.py):
    - Groups files into `episode_map` by episode numbers
    - Filters duplicate subtitles
 
-4. **Preprocessing** (processors/preprocessor.py) - **NEW**:
+4. **Preprocessing** (processors/preprocessor.py):
    - **Conditional**: runs only when needed
    - **AVI Conversion**: .avi → .mkv using ffmpeg (remux)
    - **EAC3 Conversion**: detects EAC3, converts to AAC
    - **Track Embedding**: embeds external .mka and .ass/.srt into MKV
-   - Creates temporary files in `.preprocessing_temp/`
+   - Creates temporary files in `.preprocessing_temp/` (inside working directory)
 
 5. **AI Analysis** (processors/ai_analyzer.py):
-   - Uses OpenAI GPT-4o to determine official English title
-   - Determines release year and confirms season
-   - Falls back to local recognition if API key is missing
+   - Uses OpenAI **GPT-5 with web search** for accurate title/year recognition
+   - Searches TVDB/TMDB/IMDb/MyAnimeList for official titles
+   - Confirms season number and episode count
+   - **No fallback** - requires OpenAI API key
 
 6. **User Confirmation** (media_organizer.py):
    - Interactive confirmation/correction of metadata
@@ -129,20 +137,27 @@ openai-series-analizer/
 ### External Dependencies
 
 **Required:**
+- **OpenAI API key** - for AI-powered recognition (GPT-5, GPT-4o-mini)
 - **mkvmerge** (MKVToolNix) - for merging media files
 - **mediainfo** - for analysis and validation
 - **ffmpeg** - for AVI→MKV and EAC3→AAC conversion
 
-### File Pattern Recognition
-- Episodes: `[Ss](\d+)[Ee](\d+)` (utils/patterns.py)
-- Directories: `^(.+?)\.S(\d+).*?-(\w+)$` (utils/patterns.py)
+### AI-Powered Pattern Recognition
+- **Directory parsing**: AI-based (GPT-4o-mini) - handles any format
+- **Subtitle detection**: AI-based (GPT-4o-mini) - recognizes any studio/track name
+- **Episode numbers**: Regex `[Ss](\d+)[Ee](\d+)` - kept for reliability
+- **Series analysis**: GPT-5 with web search - searches TVDB/TMDB/IMDb/MyAnimeList
 
 ### Preprocessing Features
 - **AVI Detection**: by `.avi` extension (processors/avi_converter.py)
 - **EAC3 Detection**: via MediaInfo analysis (processors/audio_converter.py)
 - **Track Embedding**: embeds external .mka and .ass/.srt (processors/track_embedder.py)
+- **Temp files location**: `.preprocessing_temp/` inside working directory (same disk)
 
 ### Key Modules
+- `processors/ai_analyzer.py` - GPT-5 with web search for series recognition
+- `utils/patterns.py` - AI-powered pattern recognition (directory, subtitles)
+- `config/prompts.py` - centralized AI prompt templates
 - `processors/preprocessor.py` - preprocessing coordinator, manages temp files
 - `processors/audio_converter.py` - detects EAC3 tracks, extracts, converts to AAC, replaces
 - `processors/avi_converter.py` - ffmpeg remux (no video re-encoding)
@@ -159,7 +174,11 @@ openai-series-analizer/
 ### Configuration Management
 - **API keys and secrets**: in `.env` file (never commit)
 - **AI prompts**: in `config/prompts.py` for flexibility (multiline prompts don't work well in .env)
-- **Important parameters**: in `.env` file (model name, bitrates, temperatures, etc.)
+- **Important parameters**: in `.env` file:
+  - `OPENAI_MODEL` - main model (gpt-5 recommended)
+  - `OPENAI_REASONING_EFFORT` - GPT-5 reasoning level (minimal/low/medium/high)
+  - `OPENAI_SIMPLE_MODEL` - for pattern recognition (gpt-4o-mini recommended)
+  - `AAC_BITRATE` - audio conversion quality
 - **Unimportant parameters**: can be hardcoded in code
 - `.env` is in `.gitignore` - never commit secrets
 - **Always add comments** to `.env` file explaining each parameter
@@ -189,7 +208,12 @@ openai-series-analizer/
 ### Code Organization Principles
 - **Organize for maintainability**: Structure the project to make it easy for Claude to navigate and maintain
 - **Only Claude writes code**: Design code to be comfortable for AI-assisted development
-- **Leverage AI analysis**: Use OpenAI API in places where AI analysis can improve result quality (e.g., title recognition, metadata extraction)
+- **Leverage AI analysis**: Use OpenAI API extensively for complex pattern recognition and data extraction
+  - Title recognition with web search (GPT-5)
+  - Directory/file parsing (GPT-4o-mini)
+  - Subtitle track detection (GPT-4o-mini)
+  - Any complex logic where AI can outperform regex
+- **No regex fallbacks**: OpenAI API is required - if unavailable, process stops with clear error
 - **Self-documenting code**: Write clear, self-explanatory code that's easy to understand later
 
 ### Language Policy

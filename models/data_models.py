@@ -57,3 +57,6 @@ class PreprocessingResult:
     tracks_embedded: bool = False
     success: bool = True
     error_message: Optional[str] = None
+    # Statistics for preview
+    audio_tracks_count: int = 0
+    subtitle_tracks_count: int = 0

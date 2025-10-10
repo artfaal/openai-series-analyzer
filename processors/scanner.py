@@ -6,7 +6,7 @@ Scans directory and classifies media files
 from pathlib import Path
 from typing import List
 from models.data_models import MediaFile
-from utils.patterns import extract_episode_info, detect_subtitle_track
+from utils.patterns import extract_episode_info, detect_subtitle_tracks_batch, detect_subtitle_languages_batch
 
 
 class FileScanner:
@@ -32,9 +32,15 @@ class FileScanner:
         print(f"\n🔍 Сканирование директории: {directory}")
 
         files = []
+        subtitle_files = []  # Collect subtitle files for batch processing
         subtitle_hashes = {}  # For detecting duplicates
 
+        # First pass: collect all files
         for item in directory.rglob('*'):
+            # Skip preprocessing temp directory
+            if '.preprocessing_temp' in item.parts:
+                continue
+
             if not item.is_file() or item.name == 'Комментарий.txt':
                 continue
 
@@ -58,24 +64,57 @@ class FileScanner:
                     episode_number=episode
                 )
 
-                # For subtitles
                 if file_type == 'subtitle':
-                    media_file.subtitle_track = detect_subtitle_track(
-                        item.name,
-                        item.parent.name
-                    )
-
-                    # Check for subtitle duplicates
-                    file_size = item.stat().st_size
-                    hash_key = (episode, media_file.subtitle_track, file_size)
-
-                    if hash_key in subtitle_hashes:
-                        media_file.is_duplicate = True
-                        print(f"🔄 Дубликат субтитров: {item.name}")
-                    else:
-                        subtitle_hashes[hash_key] = item
+                    subtitle_files.append(media_file)
 
                 files.append(media_file)
+
+        # Batch process subtitle track detection and language detection
+        if subtitle_files:
+            print(f"🤖 AI-распознавание субтитров ({len(subtitle_files)} файлов)...")
+
+            # Detect tracks (by filename)
+            subtitle_info = [
+                {'filename': f.filename, 'parent_dir': f.path.parent.name}
+                for f in subtitle_files
+            ]
+            subtitle_tracks = detect_subtitle_tracks_batch(subtitle_info)
+
+            # Detect languages (by content) - sample first subtitle per episode
+            unique_subs = {}
+            for idx, media_file in enumerate(subtitle_files):
+                ep_num = media_file.episode_number
+                if ep_num and ep_num not in unique_subs:
+                    unique_subs[ep_num] = (idx, media_file)
+
+            if unique_subs:
+                print(f"🌐 Определение языков ({len(unique_subs)} образцов)...")
+                lang_detection_files = [
+                    {'index': idx, 'path': mf.path, 'filename': mf.filename}
+                    for idx, mf in unique_subs.values()
+                ]
+                language_results = detect_subtitle_languages_batch(lang_detection_files)
+
+            # Apply results
+            for idx, media_file in enumerate(subtitle_files):
+                media_file.subtitle_track = subtitle_tracks.get(idx)
+
+                # Apply language from sample if available
+                if unique_subs and media_file.episode_number in unique_subs:
+                    sample_idx = unique_subs[media_file.episode_number][0]
+                    lang_info = language_results.get(sample_idx, {})
+                    if lang_info:
+                        media_file.language = lang_info.get('language_name')
+
+                # Check for duplicates
+                file_size = media_file.path.stat().st_size
+                hash_key = (media_file.episode_number, media_file.subtitle_track, file_size)
+
+                if hash_key in subtitle_hashes:
+                    media_file.is_duplicate = True
+                    print(f"🔄 Дубликат субтитров: {media_file.filename}")
+                else:
+                    subtitle_hashes[hash_key] = media_file.path
 
         print(f"✅ Найдено файлов: {len(files)}")
         print(f"   - Видео: {sum(1 for f in files if f.file_type == 'video')}")

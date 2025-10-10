@@ -1,32 +1,33 @@
 """
 AI Analyzer
-Uses OpenAI API for series title recognition
+Uses OpenAI API for series title recognition with web search
 """
 
 import os
 import json
 from pathlib import Path
 from typing import List, Dict
-import openai
+from openai import OpenAI
 from dotenv import load_dotenv
 from models.data_models import MediaFile
-from config.prompts import AI_SYSTEM_PROMPT, AI_USER_PROMPT_TEMPLATE
+from config.prompts import AI_ANALYSIS_PROMPT
 
 # Load environment variables
 load_dotenv()
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-openai.api_key = OPENAI_API_KEY
 
 
 class AIAnalyzer:
-    """Series analyzer via OpenAI API"""
+    """Series analyzer via OpenAI API with web search"""
 
     def __init__(self):
-        self.api_key = OPENAI_API_KEY
-        self.model = os.getenv('OPENAI_MODEL', 'gpt-4o')
-        self.temperature = float(os.getenv('OPENAI_TEMPERATURE', '0.3'))
-        self.system_prompt = AI_SYSTEM_PROMPT
-        self.user_prompt_template = AI_USER_PROMPT_TEMPLATE
+        self.api_key = os.getenv('OPENAI_API_KEY')
+        if not self.api_key:
+            raise ValueError("OPENAI_API_KEY not found in .env file. Please add your API key.")
+
+        self.client = OpenAI(api_key=self.api_key)
+        self.model = os.getenv('OPENAI_MODEL', 'gpt-4o')  # Use gpt-4o or gpt-5 when available
+        self.reasoning_effort = os.getenv('OPENAI_REASONING_EFFORT', 'medium')
+        self.prompt_template = AI_ANALYSIS_PROMPT
 
     def analyze(
         self,
@@ -35,7 +36,7 @@ class AIAnalyzer:
         directory_name: str
     ) -> Dict:
         """
-        Analyzes files using OpenAI API
+        Analyzes files using OpenAI API with web search
 
         Args:
             files: List of MediaFile objects
@@ -44,13 +45,11 @@ class AIAnalyzer:
 
         Returns:
             Dict with keys: title, year, season, total_episodes, needs_confirmation
-        """
-        # Check for API key
-        if not self.api_key:
-            print("\n⚠️  OpenAI API ключ не найден в .env файле, используем локальное распознавание")
-            return self._get_fallback_result(dir_info, files)
 
-        print("\n🤖 Анализ через OpenAI API...")
+        Raises:
+            Exception: If OpenAI API request fails
+        """
+        print("\n🤖 Анализ через OpenAI API с веб-поиском...")
 
         # Group files for better presentation
         video_files = [f for f in files if f.file_type == 'video']
@@ -61,8 +60,8 @@ class AIAnalyzer:
 Директория: {directory_name}
 
 Видео файлы ({len(video_files)} шт):
-{chr(10).join([f"- {f.filename}" for f in video_files[:3]])}
-{"..." if len(video_files) > 3 else ""}
+{chr(10).join([f"- {f.filename}" for f in video_files[:5]])}
+{"..." if len(video_files) > 5 else ""}
 
 Субтитры (треки): {', '.join(subtitle_tracks) if subtitle_tracks else 'не найдены'}
 
@@ -72,45 +71,60 @@ class AIAnalyzer:
 - Релиз-группа: {dir_info.get('release_group', 'не определена')}
 """
 
-        prompt = self.user_prompt_template.format(file_summary=file_summary)
+        prompt = self.prompt_template.format(file_summary=file_summary)
 
         try:
-            response = openai.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": self.system_prompt},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=self.temperature
-            )
+            # Build request parameters
+            request_params = {
+                "model": self.model,
+                "tools": [{"type": "web_search"}],
+                "tool_choice": "auto",
+                "input": prompt
+            }
 
-            content = response.choices[0].message.content.strip()
+            # Add reasoning effort only if model supports it (o1, o3, gpt-5 models)
+            if self.reasoning_effort and self.model in ['gpt-5', 'o1', 'o3', 'o1-preview', 'o3-mini']:
+                request_params["reasoning"] = {"effort": self.reasoning_effort}
+
+            response = self.client.responses.create(**request_params)
+
+            # Extract JSON from output_text
+            output_text = response.output_text.strip()
 
             # Remove markdown blocks if present
-            if content.startswith('```'):
-                content = content.split('```')[1]
-                if content.startswith('json'):
-                    content = content[4:]
-                content = content.strip()
+            if output_text.startswith('```'):
+                output_text = output_text.split('```')[1]
+                if output_text.startswith('json'):
+                    output_text = output_text[4:]
+                output_text = output_text.strip()
 
-            result = json.loads(content)
+            # Extract only JSON part (sometimes AI adds explanations after JSON)
+            # Find first { and last }
+            first_brace = output_text.find('{')
+            last_brace = output_text.rfind('}')
+
+            if first_brace != -1 and last_brace != -1:
+                json_text = output_text[first_brace:last_brace + 1]
+            else:
+                json_text = output_text
+
+            result = json.loads(json_text)
+
+            # Log if web search was used
+            if hasattr(response, 'output') and response.output:
+                for item in response.output:
+                    if hasattr(item, 'type') and item.type == 'web_search_call':
+                        print("   🌐 Использован веб-поиск")
+                        break
+
             print("✅ Анализ завершён")
             return result
 
         except json.JSONDecodeError as e:
-            print(f"❌ Ошибка парсинга JSON: {e}")
-            print(f"   Ответ API: {content[:200]}...")
-            return self._get_fallback_result(dir_info, files)
+            error_msg = f"Failed to parse JSON response from OpenAI API: {e}\nResponse: {output_text[:200]}"
+            print(f"❌ {error_msg}")
+            raise Exception(error_msg)
         except Exception as e:
-            print(f"❌ Ошибка при анализе: {e}")
-            return self._get_fallback_result(dir_info, files)
-
-    def _get_fallback_result(self, dir_info: Dict, files: List[MediaFile]) -> Dict:
-        """Returns result based on local analysis"""
-        return {
-            'title': dir_info.get('title', 'Unknown'),
-            'year': None,
-            'season': dir_info.get('season', 1),
-            'total_episodes': len([f for f in files if f.file_type == 'video']),
-            'needs_confirmation': True
-        }
+            error_msg = f"OpenAI API request failed: {e}"
+            print(f"❌ {error_msg}")
+            raise Exception(error_msg)

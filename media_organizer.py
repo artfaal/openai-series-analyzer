@@ -3,7 +3,7 @@
 Media Organizer - automated preparation of series/anime for Plex
 Support for various release formats and directory structures
 
-v3.0 - Modular architecture with preprocessing
+v4.0 - AI-powered recognition with GPT-5 and web search
 """
 
 import os
@@ -20,9 +20,11 @@ from processors.ai_analyzer import AIAnalyzer
 from processors.validator import MediaValidator
 from processors.merger import MKVMerger
 from processors.preprocessor import Preprocessor
+from processors.preview import PreviewGenerator
 
 # Import utils
 from utils.patterns import parse_directory_name
+from utils.filename_normalizer import normalize_series_title
 
 
 class MediaOrganizer:
@@ -37,6 +39,7 @@ class MediaOrganizer:
             'audio': [],
             'subtitles': []
         })
+        self.preprocessing_results = {}  # Store preprocessing results for preview
 
         # Initialize processors
         self.scanner = FileScanner()
@@ -44,6 +47,7 @@ class MediaOrganizer:
         self.validator = MediaValidator()
         self.merger = MKVMerger()
         self.preprocessor = Preprocessor(self.directory)
+        self.preview_generator = PreviewGenerator()
 
     def extract_info_from_dirname(self) -> dict:
         """Extracts information from directory name"""
@@ -133,17 +137,19 @@ class MediaOrganizer:
     def generate_plex_filename(self, episode_num: int) -> str:
         """Generates filename according to Plex standard"""
         series = self.series_info
+        normalized_title = normalize_series_title(series.title)
         season_str = f"S{series.season:02d}"
         episode_str = f"E{episode_num:02d}"
 
-        filename = f"{series.title} - {season_str}{episode_str}.mkv"
+        filename = f"{normalized_title} - {season_str}{episode_str}.mkv"
         return filename
 
     def create_output_structure(self) -> Path:
         """Creates directory structure for Plex"""
         series = self.series_info
+        normalized_title = normalize_series_title(series.title)
 
-        series_folder = f"{series.title}"
+        series_folder = f"{normalized_title}"
         if series.year:
             series_folder += f" ({series.year})"
 
@@ -156,37 +162,25 @@ class MediaOrganizer:
         return output_path
 
     def show_processing_plan(self):
-        """Displays processing plan"""
-        print("\n" + "="*60)
-        print("📋 ПЛАН ОБРАБОТКИ")
-        print("="*60)
+        """Displays detailed processing plan with preview"""
+        # Generate detailed preview report
+        series_dict = {
+            'title': self.series_info.title,
+            'year': self.series_info.year,
+            'season': self.series_info.season,
+            'total_episodes': self.series_info.total_episodes
+        }
 
-        for ep_num in sorted(self.episode_map.keys()):
-            new_name = self.generate_plex_filename(ep_num)
-            ep_data = self.episode_map[ep_num]
-
-            print(f"\nЭпизод {ep_num:02d}:")
-            print(f"  → {new_name}")
-
-            if ep_data['video']:
-                print(f"  📹 Видео: {ep_data['video'].filename}")
-
-            if ep_data['audio']:
-                print(f"  🔊 Аудио: {len(ep_data['audio'])} треков")
-                for audio in ep_data['audio']:
-                    print(f"      - {audio.filename}")
-
-            if ep_data['subtitles']:
-                print(f"  💬 Субтитры:")
-                for sub in ep_data['subtitles']:
-                    track = sub.subtitle_track or "Unknown"
-                    print(f"      - {track}")
-
-        print("="*60)
+        preview_report = self.preview_generator.generate_preview(
+            self.episode_map,
+            series_dict,
+            self.preprocessing_results
+        )
+        print(preview_report)
 
     def process(self):
         """Main processing workflow"""
-        print("\n🎬 MEDIA ORGANIZER ДЛЯ PLEX v3.0")
+        print("\n🎬 MEDIA ORGANIZER ДЛЯ PLEX v4.0")
         print("="*60)
 
         # 1. Analyze directory name
@@ -203,7 +197,7 @@ class MediaOrganizer:
 
         # 4. Preprocessing (AVI→MKV, EAC3→AAC, embed tracks)
         if self.preprocessor.needs_preprocessing(self.files):
-            self.preprocessor.preprocess_all_episodes(self.episode_map)
+            self.preprocessing_results = self.preprocessor.preprocess_all_episodes(self.episode_map)
 
         # 5. AI analysis
         ai_result = self.ai_analyzer.analyze(self.files, dir_info, self.directory.name)

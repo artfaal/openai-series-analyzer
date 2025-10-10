@@ -73,7 +73,9 @@ class Preprocessor:
         result = PreprocessingResult(
             file_path=video.path,
             operations_applied=[],
-            success=True
+            success=True,
+            audio_tracks_count=len(audio_tracks),
+            subtitle_tracks_count=len(subtitles)
         )
 
         current_file = video.path
