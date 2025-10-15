@@ -168,34 +168,38 @@ class AudioConverter:
         if temp_dir is None:
             temp_dir = mkv_file.parent
 
-        # Process only the first EAC3 track for simplicity
-        # TODO: in the future, can process all tracks
-        track_index = eac3_tracks[0]
-        print(f"   Конвертация трека #{track_index}...")
+        current_file = mkv_file
 
-        # Temporary files
-        temp_eac3 = temp_dir / f"{mkv_file.stem}_temp.eac3"
-        temp_aac = temp_dir / f"{mkv_file.stem}_temp.aac"
-        output_mkv = temp_dir / f"{mkv_file.stem}_converted.mkv"
+        # Process all EAC3 tracks
+        for i, track_index in enumerate(eac3_tracks):
+            print(f"   Конвертация трека #{track_index + 1} ({i + 1}/{len(eac3_tracks)})...")
 
-        try:
-            # 1. Extract EAC3 track
-            if not self.extract_audio_track(mkv_file, track_index, temp_eac3):
-                return None
+            # Temporary files
+            temp_eac3 = temp_dir / f"{mkv_file.stem}_temp_{i}.eac3"
+            temp_aac = temp_dir / f"{mkv_file.stem}_temp_{i}.aac"
+            output_mkv = temp_dir / f"{mkv_file.stem}_converted_{i}.mkv"
 
-            # 2. Convert to AAC
-            if not self.convert_to_aac(temp_eac3, temp_aac):
-                return None
+            try:
+                # 1. Extract EAC3 track
+                if not self.extract_audio_track(current_file, track_index, temp_eac3):
+                    return None
 
-            # 3. Replace track in MKV
-            if not self.replace_audio_in_mkv(mkv_file, track_index, temp_aac, output_mkv):
-                return None
+                # 2. Convert to AAC
+                if not self.convert_to_aac(temp_eac3, temp_aac):
+                    return None
 
-            print(f"✅ EAC3 → AAC конвертация завершена: {output_mkv.name}")
-            return output_mkv
+                # 3. Replace track in MKV
+                if not self.replace_audio_in_mkv(current_file, track_index, temp_aac, output_mkv):
+                    return None
 
-        finally:
-            # Cleanup temporary files
-            for temp_file in [temp_eac3, temp_aac]:
-                if temp_file.exists():
-                    temp_file.unlink()
+                # Update current file for next iteration
+                current_file = output_mkv
+
+            finally:
+                # Cleanup temporary files
+                for temp_file in [temp_eac3, temp_aac]:
+                    if temp_file.exists():
+                        temp_file.unlink()
+
+        print(f"✅ EAC3 → AAC конвертация завершена: {len(eac3_tracks)} треков обработано")
+        return current_file
