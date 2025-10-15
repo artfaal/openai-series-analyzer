@@ -170,10 +170,20 @@ class AudioConverter:
             temp_dir = mkv_file.parent
 
         current_file = mkv_file
+        total_tracks = len(eac3_tracks)
 
         # Process all EAC3 tracks
-        for i, track_index in enumerate(eac3_tracks):
-            print(f"   Конвертация трека #{track_index + 1} ({i + 1}/{len(eac3_tracks)})...")
+        # After each replacement, track indexes shift, so we always process first EAC3 track
+        for i in range(total_tracks):
+            # Re-detect EAC3 tracks in current file (indexes change after each replacement)
+            remaining_eac3 = self.detect_eac3_tracks(current_file)
+
+            if not remaining_eac3:
+                break  # All tracks converted
+
+            # Always process first remaining EAC3 track
+            track_index = remaining_eac3[0]
+            print(f"   Конвертация трека #{track_index} ({i + 1}/{total_tracks})...")
 
             # Temporary files
             temp_eac3 = temp_dir / f"{mkv_file.stem}_temp_{i}.eac3"
@@ -202,5 +212,5 @@ class AudioConverter:
                     if temp_file.exists():
                         temp_file.unlink()
 
-        print(f"✅ EAC3 → AAC конвертация завершена: {len(eac3_tracks)} треков обработано")
+        print(f"✅ EAC3 → AAC конвертация завершена: {total_tracks} треков обработано")
         return current_file
