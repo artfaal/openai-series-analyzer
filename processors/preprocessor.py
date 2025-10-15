@@ -149,11 +149,15 @@ class Preprocessor:
         Returns:
             Dictionary {episode_num: PreprocessingResult}
         """
+        if not episode_map:
+            return {}
+
         print("\n" + "="*60)
         print("🔄 PREPROCESSING")
         print("="*60)
 
         results = {}
+        operations_count = 0
 
         for ep_num in sorted(episode_map.keys()):
             ep_data = episode_map[ep_num]
@@ -167,6 +171,8 @@ class Preprocessor:
 
             if result:
                 results[ep_num] = result
+                if result.operations_applied:
+                    operations_count += 1
 
                 # Update episode_map with new file path
                 if result.success and result.file_path != ep_data['video'].path:
@@ -179,7 +185,7 @@ class Preprocessor:
                         ep_data['subtitles'] = []
 
         print("\n" + "="*60)
-        print(f"📊 Preprocessing завершён: {len(results)} эпизодов обработано")
+        print(f"📊 Preprocessing завершён: {operations_count} эпизодов обработано")
         print("="*60)
 
         return results

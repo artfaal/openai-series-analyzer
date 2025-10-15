@@ -209,8 +209,8 @@ class MediaOrganizer:
         self.organize_files()
 
         # 4. Preprocessing (AVI→MKV, EAC3→AAC, embed tracks)
-        if self.preprocessor.needs_preprocessing(self.files):
-            self.preprocessing_results = self.preprocessor.preprocess_all_episodes(self.episode_map)
+        # Always run preprocessing - it will check for EAC3, AVI, external tracks
+        self.preprocessing_results = self.preprocessor.preprocess_all_episodes(self.episode_map)
 
         # 5. AI analysis
         ai_result = self.ai_analyzer.analyze(self.files, dir_info, self.directory.name)
