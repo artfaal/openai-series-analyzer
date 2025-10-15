@@ -30,21 +30,22 @@ class AudioConverter:
             mkv_file: Path to MKV file
 
         Returns:
-            List of track indexes with EAC3 codec
+            List of audio track indexes (0-based, relative to audio tracks only)
         """
         eac3_tracks = []
 
         try:
             media_info = MediaInfo.parse(str(mkv_file))
 
+            # Count only audio tracks to get proper index for ffmpeg (0:a:N)
+            audio_track_index = 0
             for track in media_info.tracks:
                 if track.track_type == 'Audio':
                     codec = (track.codec_id or track.format or '').upper()
                     # EAC3 can be represented as: E-AC-3, EAC3, A_EAC3
                     if 'EAC3' in codec or 'E-AC-3' in codec or 'A_EAC3' in codec:
-                        # track_id in MediaInfo starts from 1, we need 0-based index
-                        track_index = track.track_id - 1 if track.track_id else 0
-                        eac3_tracks.append(track_index)
+                        eac3_tracks.append(audio_track_index)
+                    audio_track_index += 1
 
         except Exception as e:
             print(f"⚠️  Ошибка при анализе {mkv_file.name}: {e}")
