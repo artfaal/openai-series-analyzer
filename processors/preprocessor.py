@@ -28,26 +28,6 @@ class Preprocessor:
         self.audio_converter = AudioConverter()
         self.track_embedder = TrackEmbedder()
 
-    def needs_preprocessing(self, files: List[MediaFile]) -> bool:
-        """
-        Checks if preprocessing is needed
-
-        Args:
-            files: List of files
-
-        Returns:
-            True if preprocessing is needed
-        """
-        # Check for AVI files
-        has_avi = any(f.file_type == 'video' and f.path.suffix.lower() == '.avi' for f in files)
-
-        # Check for external tracks
-        has_external_tracks = any(f.file_type in ['audio', 'subtitle'] for f in files)
-
-        # TODO: EAC3 check requires MKV file analysis
-
-        return has_avi or has_external_tracks
-
     def preprocess_episode(
         self,
         episode_num: int,
