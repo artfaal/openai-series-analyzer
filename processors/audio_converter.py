@@ -123,7 +123,7 @@ class AudioConverter:
 
         Args:
             mkv_file: Source MKV file
-            track_index: Track index to replace
+            track_index: Audio track index (0-based, relative to audio tracks)
             new_audio: New audio file (AAC)
             output_mkv: Output MKV file
 
@@ -131,15 +131,29 @@ class AudioConverter:
             True if successful, False on error
         """
         try:
-            # mkvmerge -o output.mkv input.mkv --audio-tracks !track_index new_audio.aac
-            # Remove old track and add new one
+            # Get total number of audio tracks to build proper track selection
+            media_info = MediaInfo.parse(str(mkv_file))
+            audio_count = sum(1 for t in media_info.tracks if t.track_type == 'Audio')
+
+            # Build list of audio tracks to keep (all except the one we're replacing)
+            audio_tracks_to_keep = [str(i) for i in range(audio_count) if i != track_index]
+            audio_selection = ','.join(audio_tracks_to_keep) if audio_tracks_to_keep else ''
+
+            # mkvmerge -o output.mkv --audio-tracks 1,2 input.mkv new_audio.aac
+            # Keep specified audio tracks and add new one
             cmd = [
                 self.mkvmerge_path,
                 '-o', str(output_mkv),
-                '--audio-tracks', f'!{track_index}',  # Exclude old track
-                str(mkv_file),
-                str(new_audio)  # Add new track
             ]
+
+            if audio_selection:
+                cmd.extend(['--audio-tracks', audio_selection])
+            else:
+                # If no tracks to keep, exclude all audio
+                cmd.extend(['--no-audio'])
+
+            cmd.append(str(mkv_file))
+            cmd.append(str(new_audio))  # Add new track
 
             subprocess.run(cmd, check=True, capture_output=True, text=True)
             return True
