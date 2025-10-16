@@ -294,10 +294,40 @@ class MediaOrganizer:
         print("="*60)
 
 
+def setup_logging():
+    """Setup logging to file and console"""
+    import logging
+    from datetime import datetime
+
+    # Create logs directory if it doesn't exist
+    log_dir = Path(__file__).parent / 'logs'
+    log_dir.mkdir(exist_ok=True)
+
+    # Create log file with timestamp
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    log_file = log_dir / f'media_organizer_{timestamp}.log'
+
+    # Configure logging
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s [%(levelname)s] %(message)s',
+        handlers=[
+            logging.FileHandler(log_file, encoding='utf-8'),
+            logging.StreamHandler()
+        ]
+    )
+
+    logging.info(f"Лог-файл: {log_file}")
+    return logging.getLogger(__name__)
+
+
 def main():
     """Entry point"""
     import sys
     import argparse
+
+    # Setup logging first
+    logger = setup_logging()
 
     parser = argparse.ArgumentParser(
         description='Media Organizer для Plex v4.0 - автоматическая подготовка сериалов',
@@ -353,8 +383,10 @@ def main():
             print(f"📦 ОБРАБОТКА ДИРЕКТОРИИ {idx}/{total_dirs}")
             print(f"📂 {directory}")
             print("="*60)
+            logger.info(f"Обработка директории {idx}/{total_dirs}: {directory}")
 
         try:
+            logger.info(f"Создание MediaOrganizer для: {directory}")
             organizer = MediaOrganizer(
                 directory,
                 auto_confirm=args.auto_confirm,
@@ -362,11 +394,14 @@ def main():
             )
             organizer.process()
             successful += 1
+            logger.info(f"Успешно обработано: {directory}")
         except KeyboardInterrupt:
             print("\n\n❌ Прервано пользователем")
+            logger.warning("Прервано пользователем")
             break
         except Exception as e:
             print(f"\n❌ Ошибка при обработке {directory}: {e}")
+            logger.error(f"Ошибка при обработке {directory}: {e}", exc_info=True)
             import traceback
             traceback.print_exc()
             failed += 1
