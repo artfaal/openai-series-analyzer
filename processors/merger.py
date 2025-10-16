@@ -96,5 +96,8 @@ class MKVMerger:
 
         except subprocess.CalledProcessError as e:
             print(f"❌ Ошибка mkvmerge: {e.stderr}")
-            logger.error(f"Ошибка mkvmerge: {e.stderr}")
+            logger.error(f"Ошибка mkvmerge при финальном объединении")
+            logger.error(f"Return code: {e.returncode}")
+            logger.error(f"Stderr: {e.stderr}")
+            logger.error(f"Stdout: {e.stdout}")
             return False

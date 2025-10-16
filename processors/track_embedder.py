@@ -115,7 +115,12 @@ class TrackEmbedder:
         except subprocess.CalledProcessError as e:
             print(f"❌ Ошибка mkvmerge при встраивании треков")
             print(f"   {e.stderr}")
+            logger.error(f"Ошибка mkvmerge при встраивании треков")
+            logger.error(f"Return code: {e.returncode}")
+            logger.error(f"Stderr: {e.stderr}")
+            logger.error(f"Stdout: {e.stdout}")
             return None
         except Exception as e:
             print(f"❌ Неожиданная ошибка: {e}")
+            logger.error(f"Неожиданная ошибка при встраивании треков: {e}", exc_info=True)
             return None
