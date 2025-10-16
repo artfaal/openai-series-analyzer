@@ -162,6 +162,39 @@ class AudioConverter:
             print(f"❌ Ошибка замены трека в MKV: {e.stderr}")
             return False
 
+    def convert_all_eac3_ffmpeg(self, mkv_file: Path, output_mkv: Path) -> bool:
+        """
+        Converts all EAC3 tracks to AAC in one pass using ffmpeg
+
+        Args:
+            mkv_file: Input MKV file
+            output_mkv: Output MKV file
+
+        Returns:
+            True if successful, False on error
+        """
+        try:
+            # Build ffmpeg command that converts all EAC3 audio to AAC
+            # -c copy: copy all streams by default
+            # -c:a:N aac -b:a:N 192k: for each audio track, if EAC3, convert to AAC
+            cmd = [
+                self.ffmpeg_path,
+                '-i', str(mkv_file),
+                '-map', '0',  # Copy all streams
+                '-c', 'copy',  # Copy by default
+                '-c:a', 'aac',  # Convert all audio to AAC
+                '-b:a', self.aac_bitrate,  # AAC bitrate
+                '-y',
+                str(output_mkv)
+            ]
+
+            result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            return True
+
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Ошибка конвертации через ffmpeg: {e.stderr}")
+            return False
+
     def process_file(self, mkv_file: Path, temp_dir: Optional[Path] = None) -> Optional[Path]:
         """
         Full processing cycle: EAC3 detection, conversion, replacement
@@ -183,48 +216,13 @@ class AudioConverter:
         if temp_dir is None:
             temp_dir = mkv_file.parent
 
-        current_file = mkv_file
-        total_tracks = len(eac3_tracks)
+        output_mkv = temp_dir / f"{mkv_file.stem}_converted.mkv"
 
-        # Process all EAC3 tracks
-        # After each replacement, track indexes shift, so we always process first EAC3 track
-        for i in range(total_tracks):
-            # Re-detect EAC3 tracks in current file (indexes change after each replacement)
-            remaining_eac3 = self.detect_eac3_tracks(current_file)
+        print(f"   Конвертация всех EAC3 треков в AAC...")
 
-            if not remaining_eac3:
-                break  # All tracks converted
+        # Convert all EAC3 to AAC in one pass using ffmpeg
+        if not self.convert_all_eac3_ffmpeg(mkv_file, output_mkv):
+            return None
 
-            # Always process first remaining EAC3 track
-            track_index = remaining_eac3[0]
-            print(f"   Конвертация трека #{track_index} ({i + 1}/{total_tracks})...")
-
-            # Temporary files
-            temp_eac3 = temp_dir / f"{mkv_file.stem}_temp_{i}.eac3"
-            temp_aac = temp_dir / f"{mkv_file.stem}_temp_{i}.aac"
-            output_mkv = temp_dir / f"{mkv_file.stem}_converted_{i}.mkv"
-
-            try:
-                # 1. Extract EAC3 track
-                if not self.extract_audio_track(current_file, track_index, temp_eac3):
-                    return None
-
-                # 2. Convert to AAC
-                if not self.convert_to_aac(temp_eac3, temp_aac):
-                    return None
-
-                # 3. Replace track in MKV
-                if not self.replace_audio_in_mkv(current_file, track_index, temp_aac, output_mkv):
-                    return None
-
-                # Update current file for next iteration
-                current_file = output_mkv
-
-            finally:
-                # Cleanup temporary files
-                for temp_file in [temp_eac3, temp_aac]:
-                    if temp_file.exists():
-                        temp_file.unlink()
-
-        print(f"✅ EAC3 → AAC конвертация завершена: {total_tracks} треков обработано")
-        return current_file
+        print(f"✅ EAC3 → AAC конвертация завершена: {len(eac3_tracks)} треков обработано")
+        return output_mkv
