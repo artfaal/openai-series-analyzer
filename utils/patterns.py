@@ -128,7 +128,27 @@ def extract_episode_numbers_batch(filenames: list) -> dict:
         else:
             json_text = output_text
 
-        results = json.loads(json_text)
+        # Try to parse JSON
+        try:
+            results = json.loads(json_text)
+        except json.JSONDecodeError as json_err:
+            # Try to fix common JSON issues
+            print(f"⚠️  Невалидный JSON, пытаюсь исправить...")
+
+            # Fix trailing commas
+            import re
+            json_text = re.sub(r',\s*}', '}', json_text)
+            json_text = re.sub(r',\s*]', ']', json_text)
+
+            # Try again
+            try:
+                results = json.loads(json_text)
+                print(f"✅ JSON исправлен успешно")
+            except json.JSONDecodeError:
+                # Last resort: print the problematic JSON for debugging
+                print(f"❌ Не удалось распарсить JSON:")
+                print(json_text[:500])  # Print first 500 chars
+                raise
 
         # Convert to dict indexed by file index
         return {
