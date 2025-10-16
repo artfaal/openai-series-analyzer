@@ -4,6 +4,7 @@ Detects and converts EAC3 (E-AC-3) audio tracks to AAC using ffmpeg
 """
 
 import os
+import logging
 import subprocess
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -12,6 +13,8 @@ from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 
 class AudioConverter:
@@ -35,6 +38,8 @@ class AudioConverter:
         eac3_tracks = []
 
         try:
+            logger.info(f"=== EAC3 Detection ===")
+            logger.info(f"Анализ файла: {mkv_file}")
             media_info = MediaInfo.parse(str(mkv_file))
 
             # Count only audio tracks to get proper index for ffmpeg (0:a:N)
@@ -42,13 +47,18 @@ class AudioConverter:
             for track in media_info.tracks:
                 if track.track_type == 'Audio':
                     codec = (track.codec_id or track.format or '').upper()
+                    logger.debug(f"  Аудио трек {audio_track_index}: {codec}")
                     # EAC3 can be represented as: E-AC-3, EAC3, A_EAC3
                     if 'EAC3' in codec or 'E-AC-3' in codec or 'A_EAC3' in codec:
                         eac3_tracks.append(audio_track_index)
+                        logger.info(f"  Найден EAC3 трек: индекс {audio_track_index}, кодек {codec}")
                     audio_track_index += 1
+
+            logger.info(f"Всего EAC3 треков: {len(eac3_tracks)}, индексы: {eac3_tracks}")
 
         except Exception as e:
             print(f"⚠️  Ошибка при анализе {mkv_file.name}: {e}")
+            logger.error(f"Ошибка при анализе {mkv_file}: {e}", exc_info=True)
 
         return eac3_tracks
 
@@ -174,6 +184,11 @@ class AudioConverter:
             True if successful, False on error
         """
         try:
+            logger.info(f"=== EAC3 → AAC Conversion ===")
+            logger.info(f"Входной файл: {mkv_file}")
+            logger.info(f"Выходной файл: {output_mkv}")
+            logger.info(f"AAC bitrate: {self.aac_bitrate}")
+
             # Build ffmpeg command that converts all EAC3 audio to AAC
             # -c copy: copy all streams by default
             # -c:a:N aac -b:a:N 192k: for each audio track, if EAC3, convert to AAC
@@ -188,11 +203,17 @@ class AudioConverter:
                 str(output_mkv)
             ]
 
+            logger.info(f"Команда ffmpeg: {' '.join(cmd)}")
             result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            logger.info(f"ffmpeg stdout: {result.stdout}")
+            if result.stderr:
+                logger.debug(f"ffmpeg stderr: {result.stderr}")
+            logger.info(f"Конвертация успешна: {output_mkv}")
             return True
 
         except subprocess.CalledProcessError as e:
             print(f"❌ Ошибка конвертации через ffmpeg: {e.stderr}")
+            logger.error(f"Ошибка конвертации ffmpeg: {e.stderr}")
             return False
 
     def process_file(self, mkv_file: Path, temp_dir: Optional[Path] = None) -> Optional[Path]:
@@ -206,9 +227,13 @@ class AudioConverter:
         Returns:
             Path to processed file or None if processing was not needed/unsuccessful
         """
+        logger.info(f"=== Audio Converter: process_file ===")
+        logger.info(f"Обработка файла: {mkv_file}")
+
         eac3_tracks = self.detect_eac3_tracks(mkv_file)
 
         if not eac3_tracks:
+            logger.info("EAC3 треки не найдены, обработка не требуется")
             return None  # No EAC3 tracks, processing not needed
 
         print(f"\n🔊 Обнаружено EAC3 треков: {len(eac3_tracks)} в {mkv_file.name}")
@@ -217,12 +242,15 @@ class AudioConverter:
             temp_dir = mkv_file.parent
 
         output_mkv = temp_dir / f"{mkv_file.stem}_converted.mkv"
+        logger.info(f"Выходной файл: {output_mkv}")
 
         print(f"   Конвертация всех EAC3 треков в AAC...")
 
         # Convert all EAC3 to AAC in one pass using ffmpeg
         if not self.convert_all_eac3_ffmpeg(mkv_file, output_mkv):
+            logger.error("Конвертация не удалась")
             return None
 
         print(f"✅ EAC3 → AAC конвертация завершена: {len(eac3_tracks)} треков обработано")
+        logger.info(f"EAC3 → AAC конвертация завершена: {len(eac3_tracks)} треков")
         return output_mkv

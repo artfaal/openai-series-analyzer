@@ -67,6 +67,10 @@ class MediaOrganizer:
 
     def organize_files(self):
         """Organizes files by episodes"""
+        import logging
+        logger = logging.getLogger(__name__)
+
+        logger.info("=== Организация файлов ===")
         print("\n📋 Организация файлов по эпизодам...")
 
         for file in self.files:
@@ -75,11 +79,15 @@ class MediaOrganizer:
 
                 if file.file_type == 'video':
                     self.episode_map[ep]['video'] = file
+                    logger.info(f"Эпизод {ep}: видео {file.path}")
                 elif file.file_type == 'audio':
                     self.episode_map[ep]['audio'].append(file)
+                    logger.info(f"Эпизод {ep}: аудио {file.path}")
                 elif file.file_type == 'subtitle' and not file.is_duplicate:
                     self.episode_map[ep]['subtitles'].append(file)
+                    logger.info(f"Эпизод {ep}: субтитры {file.path}")
 
+        logger.info(f"Всего эпизодов организовано: {len(self.episode_map)}")
         print(f"✅ Организовано эпизодов: {len(self.episode_map)}")
 
     def confirm_series_info(self, ai_result: dict, dir_info: dict) -> SeriesInfo:
@@ -193,48 +201,75 @@ class MediaOrganizer:
 
     def process(self):
         """Main processing workflow"""
+        import logging
+        logger = logging.getLogger(__name__)
+
+        logger.info(f"=== НАЧАЛО ОБРАБОТКИ ===")
+        logger.info(f"Директория: {self.directory}")
+        logger.info(f"Авто-подтверждение: {self.auto_confirm}")
+        logger.info(f"Удаление источника: {self.delete_source}")
+
         print("\n🎬 MEDIA ORGANIZER ДЛЯ PLEX v4.0")
         print("="*60)
 
         # 1. Analyze directory name
+        logger.info("Этап 1: Анализ названия директории")
         dir_info = self.extract_info_from_dirname()
+        logger.info(f"Результат анализа: {dir_info}")
 
         # 2. Scan files
+        logger.info("Этап 2: Сканирование файлов")
         self.files = self.scanner.scan_directory(self.directory)
         if not self.files:
             print("❌ Файлы не найдены")
+            logger.error("Файлы не найдены")
             return
 
         # 3. Organize files by episodes
+        logger.info("Этап 3: Организация файлов по эпизодам")
         self.organize_files()
 
         # 4. Preprocessing (AVI→MKV, EAC3→AAC, embed tracks)
         # Always run preprocessing - it will check for EAC3, AVI, external tracks
+        logger.info("Этап 4: Preprocessing")
         self.preprocessing_results = self.preprocessor.preprocess_all_episodes(self.episode_map)
+        logger.info(f"Результаты preprocessing: {len(self.preprocessing_results)} эпизодов обработано")
 
         # 5. AI analysis
+        logger.info("Этап 5: AI-анализ серии")
         ai_result = self.ai_analyzer.analyze(self.files, dir_info, self.directory.name)
+        logger.info(f"AI результат: {ai_result}")
 
         # 6. Confirm information
+        logger.info("Этап 6: Подтверждение информации")
         self.series_info = self.confirm_series_info(ai_result, dir_info)
+        logger.info(f"Информация о серии: {self.series_info}")
 
         # 7. Processing plan
+        logger.info("Этап 7: План обработки")
         self.show_processing_plan()
 
         # 8. Confirmation
+        logger.info("Этап 8: Подтверждение пользователя")
         if self.auto_confirm:
             print("\n✅ Авто-подтверждение: начинаем обработку")
+            logger.info("Автоматическое подтверждение активно")
         else:
             confirm = input("\n▶️  Начать обработку? (y/n): ").strip().lower()
+            logger.info(f"Ответ пользователя: {confirm}")
             if confirm != 'y':
                 print("❌ Отменено")
+                logger.info("Обработка отменена пользователем")
                 self.preprocessor.cleanup()
                 return
 
         # 9. Create structure
+        logger.info("Этап 9: Создание выходной структуры")
         output_path = self.create_output_structure()
+        logger.info(f"Выходной путь: {output_path}")
 
         # 10. Process episodes (merge)
+        logger.info("Этап 10: Финальное объединение")
         print("\n" + "="*60)
         print("⚙️  ФИНАЛЬНОЕ ОБЪЕДИНЕНИЕ")
         print("="*60)
@@ -244,6 +279,7 @@ class MediaOrganizer:
             ep_data = self.episode_map[ep_num]
             output_file = output_path / self.generate_plex_filename(ep_num)
 
+            logger.info(f"Объединение эпизода {ep_num}: {output_file}")
             if self.merger.merge_episode(
                 ep_data['video'],
                 ep_data['audio'],
@@ -251,16 +287,20 @@ class MediaOrganizer:
                 output_file
             ):
                 success_count += 1
+                logger.info(f"Эпизод {ep_num} успешно объединён")
 
         # 11. Validation
+        logger.info("Этап 11: Валидация")
         if success_count > 0:
             self.validator.validate_directory(output_path)
 
         # 12. Cleanup
+        logger.info("Этап 12: Очистка временных файлов")
         self.preprocessor.cleanup()
 
         # 13. Delete source directory if requested and all episodes succeeded
         if self.delete_source and success_count == len(self.episode_map) and success_count > 0:
+            logger.info("Этап 13: Удаление исходной директории")
             print("\n🗑️  Удаление исходной директории...")
             try:
                 import shutil
@@ -277,13 +317,19 @@ class MediaOrganizer:
                             # Ignore errors for ._ files
                             if not os.path.basename(path).startswith('._'):
                                 print(f"⚠️  Не удалось удалить: {path}")
+                                logger.warning(f"Не удалось удалить: {path}")
 
                 shutil.rmtree(self.directory, onerror=onerror)
                 print(f"✅ Исходная директория удалена: {self.directory}")
+                logger.info(f"Исходная директория удалена: {self.directory}")
             except Exception as e:
                 print(f"⚠️  Не удалось удалить исходную директорию: {e}")
+                logger.error(f"Не удалось удалить исходную директорию: {e}", exc_info=True)
 
         # 14. Summary
+        logger.info("=== ИТОГИ ===")
+        logger.info(f"Успешно обработано: {success_count}/{len(self.episode_map)}")
+        logger.info(f"Выходной путь: {output_path}")
         print("\n" + "="*60)
         print("🎉 ОБРАБОТКА ЗАВЕРШЕНА!")
         print("="*60)

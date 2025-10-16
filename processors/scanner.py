@@ -3,6 +3,7 @@ File Scanner
 Scans directory and classifies media files
 """
 
+import logging
 from pathlib import Path
 from typing import List
 from models.data_models import MediaFile
@@ -12,6 +13,8 @@ from utils.patterns import (
     detect_subtitle_languages_batch,
     detect_audio_studios_batch
 )
+
+logger = logging.getLogger(__name__)
 
 
 class FileScanner:
@@ -34,6 +37,8 @@ class FileScanner:
         Returns:
             List of MediaFile objects
         """
+        logger.info(f"=== File Scanner ===")
+        logger.info(f"Сканирование директории: {directory}")
         print(f"\n🔍 Сканирование директории: {directory}")
 
         files = []
@@ -64,6 +69,7 @@ class FileScanner:
                     break
 
             if file_type:
+                logger.debug(f"Найден файл: {item} (тип: {file_type})")
                 media_file = MediaFile(
                     path=item,
                     filename=item.name,
@@ -81,8 +87,10 @@ class FileScanner:
 
         # Batch extract episode numbers for all files
         if files:
+            logger.info(f"Всего файлов найдено: {len(files)}")
             print(f"🤖 AI-распознавание номеров эпизодов ({len(files)} файлов)...")
             filenames = [f.filename for f in files]
+            logger.info(f"Отправка {len(filenames)} файлов на AI-распознавание эпизодов")
             episode_results = extract_episode_numbers_batch(filenames)
 
             # Apply results
@@ -90,9 +98,11 @@ class FileScanner:
                 if idx in episode_results:
                     media_file.season_number = episode_results[idx].get('season')
                     media_file.episode_number = episode_results[idx].get('episode')
+                    logger.debug(f"Эпизод {media_file.episode_number}: {media_file.filename}")
 
         # Batch process subtitle track detection and language detection
         if subtitle_files:
+            logger.info(f"Субтитров найдено: {len(subtitle_files)}")
             print(f"🤖 AI-распознавание субтитров ({len(subtitle_files)} файлов)...")
 
             # Detect tracks (by filename)
@@ -100,6 +110,7 @@ class FileScanner:
                 {'filename': f.filename, 'parent_dir': f.path.parent.name}
                 for f in subtitle_files
             ]
+            logger.info(f"Отправка {len(subtitle_info)} субтитров на AI-распознавание треков")
             subtitle_tracks = detect_subtitle_tracks_batch(subtitle_info)
 
             # Detect languages (by content) - sample first subtitle per episode
@@ -140,21 +151,31 @@ class FileScanner:
 
         # Batch process audio studio detection
         if audio_files:
+            logger.info(f"Аудио файлов найдено: {len(audio_files)}")
             print(f"🤖 AI-распознавание аудиостудий ({len(audio_files)} файлов)...")
 
             audio_info = [
                 {'filename': f.filename, 'parent_dir': f.path.parent.name}
                 for f in audio_files
             ]
+            logger.info(f"Отправка {len(audio_info)} аудио на AI-распознавание студий")
             audio_studios = detect_audio_studios_batch(audio_info)
 
             # Apply results
             for idx, media_file in enumerate(audio_files):
                 media_file.audio_track = audio_studios.get(idx)
+                logger.debug(f"Аудио студия {audio_studios.get(idx)}: {media_file.filename}")
+
+        video_count = sum(1 for f in files if f.file_type == 'video')
+        audio_count = sum(1 for f in files if f.file_type == 'audio')
+        subtitle_count = sum(1 for f in files if f.file_type == 'subtitle')
+
+        logger.info(f"Сканирование завершено: {len(files)} файлов")
+        logger.info(f"  Видео: {video_count}, Аудио: {audio_count}, Субтитры: {subtitle_count}")
 
         print(f"✅ Найдено файлов: {len(files)}")
-        print(f"   - Видео: {sum(1 for f in files if f.file_type == 'video')}")
-        print(f"   - Аудио: {sum(1 for f in files if f.file_type == 'audio')}")
-        print(f"   - Субтитры: {sum(1 for f in files if f.file_type == 'subtitle')}")
+        print(f"   - Видео: {video_count}")
+        print(f"   - Аудио: {audio_count}")
+        print(f"   - Субтитры: {subtitle_count}")
 
         return files

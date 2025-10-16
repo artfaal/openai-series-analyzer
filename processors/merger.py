@@ -3,10 +3,13 @@ MKV Merger
 Combines video, audio and subtitles into final MKV file
 """
 
+import logging
 import subprocess
 from pathlib import Path
 from typing import List, Optional
 from models.data_models import MediaFile
+
+logger = logging.getLogger(__name__)
 
 
 class MKVMerger:
@@ -34,9 +37,21 @@ class MKVMerger:
         Returns:
             True if successful, False on error
         """
+        logger.info(f"=== MKV Merger ===")
+        logger.info(f"Выходной файл: {output_file}")
+
         if not video:
             print(f"⚠️  Видео не найдено")
+            logger.error("Видео не найдено")
             return False
+
+        logger.info(f"Видео: {video.path}")
+        logger.info(f"Аудио треков: {len(audio_tracks)}")
+        for idx, audio in enumerate(audio_tracks):
+            logger.info(f"  Аудио {idx}: {audio.path}")
+        logger.info(f"Субтитров: {len(subtitles)}")
+        for idx, sub in enumerate(subtitles):
+            logger.info(f"  Субтитры {idx}: {sub.path} (трек: {sub.subtitle_track})")
 
         print(f"\n🔧 Обработка эпизода:")
         print(f"   Видео: {video.filename}")
@@ -62,6 +77,8 @@ class MKVMerger:
                 str(sub.path)
             ])
 
+        logger.info(f"Команда mkvmerge: {' '.join(cmd)}")
+
         try:
             result = subprocess.run(
                 cmd,
@@ -70,9 +87,14 @@ class MKVMerger:
                 text=True,
                 encoding='utf-8'
             )
+            logger.info(f"mkvmerge stdout: {result.stdout}")
+            if result.stderr:
+                logger.debug(f"mkvmerge stderr: {result.stderr}")
             print(f"✅ Создан: {output_file.name}")
+            logger.info(f"Успешно создан: {output_file}")
             return True
 
         except subprocess.CalledProcessError as e:
             print(f"❌ Ошибка mkvmerge: {e.stderr}")
+            logger.error(f"Ошибка mkvmerge: {e.stderr}")
             return False

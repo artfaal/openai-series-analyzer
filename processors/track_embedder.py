@@ -3,10 +3,13 @@ Track Embedder
 Embeds external audio and subtitles into MKV container
 """
 
+import logging
 import subprocess
 from pathlib import Path
 from typing import List, Optional
 from models.data_models import MediaFile
+
+logger = logging.getLogger(__name__)
 
 
 class TrackEmbedder:
@@ -60,6 +63,11 @@ class TrackEmbedder:
         print(f"\n📦 Встраивание внешних треков в {mkv_file.name}")
         print(f"   Аудио: {len(audio_files)}, Субтитры: {len(subtitle_files)}")
 
+        logger.info(f"=== Track Embedder ===")
+        logger.info(f"Исходный MKV: {mkv_file}")
+        logger.info(f"Выходной MKV: {output_file}")
+        logger.info(f"Аудио файлов: {len(audio_files)}, Субтитров: {len(subtitle_files)}")
+
         try:
             # Build mkvmerge command
             cmd = [
@@ -72,6 +80,7 @@ class TrackEmbedder:
             for audio in audio_files:
                 cmd.append(str(audio.path))
                 print(f"   + Аудио: {audio.filename}")
+                logger.info(f"Добавление аудио: {audio.path}")
 
             # Add subtitles with metadata
             for sub in subtitle_files:
@@ -83,6 +92,9 @@ class TrackEmbedder:
                     str(sub.path)
                 ])
                 print(f"   + Субтитры: {track_name}")
+                logger.info(f"Добавление субтитров: {sub.path} (трек: {track_name})")
+
+            logger.info(f"Команда mkvmerge: {' '.join(cmd)}")
 
             result = subprocess.run(
                 cmd,
@@ -92,7 +104,12 @@ class TrackEmbedder:
                 encoding='utf-8'
             )
 
+            logger.info(f"mkvmerge stdout: {result.stdout}")
+            if result.stderr:
+                logger.warning(f"mkvmerge stderr: {result.stderr}")
+
             print(f"✅ Треки встроены: {output_file.name}")
+            logger.info(f"Успешно: {output_file}")
             return output_file
 
         except subprocess.CalledProcessError as e:
