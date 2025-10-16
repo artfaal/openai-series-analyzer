@@ -65,11 +65,26 @@ def normalize_series_title(title: str) -> str:
     Normalizes series title for directory/file names
 
     Same as normalize_filename but specifically for series titles
+    Also removes trailing punctuation (., , - etc.) to prevent
+    different folder names for the same series
 
     Args:
         title: Series title
 
     Returns:
         Normalized title
+
+    Examples:
+        "Bakuman." → "Bakuman"
+        "Bakuman ." → "Bakuman"
+        "Series Title," → "Series Title"
+        "Title -" → "Title"
     """
-    return normalize_filename(title)
+    # First apply standard filename normalization
+    normalized = normalize_filename(title)
+
+    # Remove trailing punctuation (., , - etc.) and spaces
+    # This prevents "Bakuman" and "Bakuman." from creating different folders
+    normalized = normalized.rstrip('.,;:!?- ')
+
+    return normalized
